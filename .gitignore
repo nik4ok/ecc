@@ -1,0 +1,17 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# Environments & dependencies
+node_modules/
+__pycache__/
+*.pyc
+.env
+.env.local
+
+# Cloned external submodules/repos if any
+langfuse/
+
+# Temporary files
+*.log
+*.tmp
