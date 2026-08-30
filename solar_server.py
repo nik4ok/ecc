@@ -3,7 +3,7 @@ import os
 import queue
 import threading
 import time
-from http.server import HTTPServer, SimpleHTTPRequestHandler
+from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 PORT = 8085
 DIRECTORY = "/Users/nikita.symnitelny/ecc"
@@ -29,12 +29,12 @@ class SolarHandler(SimpleHTTPRequestHandler):
 
             try:
                 # Send welcome event
-                self.wfile.write(b"data: {\"from\": \"core\", \"to\": \"planner\", \"action\": \"SSE Live Stream Ready\"}\n\n")
+                self.wfile.write(b"data: {\"from\": \"core\", \"to\": \"planner\", \"action\": \"SSE Live Stream Connected\"}\n\n")
                 self.wfile.flush()
 
                 while True:
                     try:
-                        msg = q.get(timeout=20)
+                        msg = q.get(timeout=15)
                         self.wfile.write(f"data: {json.dumps(msg)}\n\n".encode("utf-8"))
                         self.wfile.flush()
                     except queue.Empty:
@@ -85,6 +85,6 @@ class SolarHandler(SimpleHTTPRequestHandler):
         self.end_headers()
 
 if __name__ == "__main__":
-    server = HTTPServer(("0.0.0.0", PORT), SolarHandler)
-    print(f"Solar Server with Live SSE running at http://localhost:{PORT}")
+    server = ThreadingHTTPServer(("0.0.0.0", PORT), SolarHandler)
+    print(f"Solar Server (Multi-threaded SSE) running at http://localhost:{PORT}")
     server.serve_forever()

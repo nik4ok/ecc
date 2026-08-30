@@ -1,0 +1,47 @@
+name: Build Nova VPN APK
+
+on:
+  push:
+    branches: [ "main", "feat/*" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java Development Kit (JDK 17)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Set up Flutter SDK
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.24.5'
+          channel: 'stable'
+          cache: true
+
+      - name: Get Flutter dependencies
+        working-directory: ./mobile
+        run: flutter pub get
+
+      - name: Run Tests
+        working-directory: ./mobile
+        run: flutter test
+
+      - name: Build Android APK
+        working-directory: ./mobile
+        run: flutter build apk --debug
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nova-vpn-debug-apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk

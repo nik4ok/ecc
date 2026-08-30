@@ -709,20 +709,34 @@
             emitEnergyBeam(from, to, action);
         };
 
-        // Real-Time Autonomous Pulse Engine (Realistic AI Swarm Scenarios)
+        // Real-Time Autonomous Pulse Engine (Dynamic & Realistic AI Swarm Scenarios)
         const AUTONOMOUS_WORKFLOWS = [
-            { from: "core", to: "planner", action: "Спринт 1: Декомпозиция узла NL (92.51.46.12)" },
+            { from: "core", to: "planner", action: "Спринт 2: Интеграция AmneziaWG 2.0 (92.51.46.12)" },
             { from: "planner", to: "architect", action: "Проектирование Clean Architecture & BLoC" },
-            { from: "architect", to: "dev", action: "Генерация скриптов развертывания sing-box" },
-            { from: "dev", to: "security-reviewer", action: "Аудит X25519 ключей, ShortId и UFW" },
-            { from: "security-reviewer", to: "tdd-guide", action: "Верификация защиты: 9.4/10 PASS" },
-            { from: "tdd-guide", to: "flutter-reviewer", action: "TDD тесты парсера VLESS Reality" },
-            { from: "flutter-reviewer", to: "network-troubleshooter", action: "Тест TCP BBR & пинга 1000 Мбит/с" },
-            { from: "network-troubleshooter", to: "build-error-resolver", action: "Валидация пакета и TUN маршрутов" },
-            { from: "build-error-resolver", to: "core", action: "Синхронизация завершена. Сервер готов! ✅" },
-            { from: "core", to: "database-reviewer", action: "Проверка реестра servers.json и P&L модели" },
-            { from: "database-reviewer", to: "marketing-agent", action: "Расчет окупаемости: 5 подписчиков = 1300₽" },
-            { from: "marketing-agent", to: "doc-updater", action: "Обновление руководства развертывания" }
+            { from: "architect", to: "dev", action: "Генерация AmneziaWgConfigGenerator.dart" },
+            { from: "dev", to: "security-reviewer", action: "Аудит SecureProfileStore & Keystore/Keychain" },
+            { from: "security-reviewer", to: "tdd-guide", action: "Запуск 84 Unit & BLoC тестов (100% PASS)" },
+            { from: "tdd-guide", to: "flutter-reviewer", action: "Тестирование BLoC стейт-машины и холодного старта" },
+            { from: "flutter-reviewer", to: "network-troubleshooter", action: "Проверка UDP 38037 и 1 Gbps канала" },
+            { from: "network-troubleshooter", to: "build-error-resolver", action: "Компиляция AndroidManifest & VpnService" },
+            { from: "build-error-resolver", to: "seniorpa", action: "Анализ P&L: 100 юзеров = +28 600 ₽/мес" },
+            { from: "seniorpa", to: "marketing-agent", action: "Формирование тарифов: 299 ₽/мес и 3-дневный триал" },
+            { from: "marketing-agent", to: "doc-updater", action: "Пуш коммита 52fc539 в ветку feat/vpn-mobile" },
+            { from: "doc-updater", to: "core", action: "Синхронизация завершена. Все системы в норме! 🚀" }
+        ];
+
+        // Dynamic Random Scenario Generator for endless unique real-time telemetry
+        const DYNAMIC_ACTIONS = [
+            "Пинг узла 92.51.46.12: 16 мс (Стабильно)",
+            "Обфускация пакетов: Jc=5, Jmin=10, Jmax=50",
+            "Смена ключа сессии X25519 в Keychain",
+            "Split-tunneling: Сбер & Т-Банк пущены напрямую",
+            "Мониторинг пропускной способности: 980 Мбит/с",
+            "Защита от утечек DNS & IPv6 активна",
+            "Синхронизация профиля через SecureProfileStore",
+            "Проверка живучести ноды Нидерланды NL-01",
+            "Анализ Churn Rate и LTV подписок",
+            "Тест нативного канала MethodChannel/EventChannel"
         ];
 
         let autoIndex = 0;
@@ -732,11 +746,22 @@
             if (autoInterval) clearInterval(autoInterval);
             autoInterval = setInterval(() => {
                 if (!isPaused && isAutoStreaming) {
-                    const step = AUTONOMOUS_WORKFLOWS[autoIndex % AUTONOMOUS_WORKFLOWS.length];
-                    emitEnergyBeam(step.from, step.to, step.action);
-                    autoIndex++;
+                    if (Math.random() > 0.4 && departments.length > 0) {
+                        // Pick random active agents across departments for natural live network traffic
+                        const randomDept1 = departments[Math.floor(Math.random() * departments.length)];
+                        const randomAgent1 = randomDept1.agents[Math.floor(Math.random() * randomDept1.agents.length)];
+                        const randomDept2 = departments[Math.floor(Math.random() * departments.length)];
+                        const randomAgent2 = randomDept2.agents[Math.floor(Math.random() * randomDept2.agents.length)];
+                        const randomAction = DYNAMIC_ACTIONS[Math.floor(Math.random() * DYNAMIC_ACTIONS.length)];
+                        
+                        emitEnergyBeam(randomAgent1.id || randomAgent1.name, randomAgent2.id || randomAgent2.name, randomAction);
+                    } else {
+                        const step = AUTONOMOUS_WORKFLOWS[autoIndex % AUTONOMOUS_WORKFLOWS.length];
+                        emitEnergyBeam(step.from, step.to, step.action);
+                        autoIndex++;
+                    }
                 }
-            }, 2200); // Pulse every 2.2s for steady alive stream
+            }, 2000); // Dynamic pulses every 2.0s
         }
         startAutoTelemetry();
 
