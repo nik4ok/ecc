@@ -36,6 +36,11 @@ android {
     }
 }
 
+dependencies {
+    implementation 'com.wireguard.android:tunnel:1.0.20231001'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+}
+
 flutter {
     source = "../.."
 }
