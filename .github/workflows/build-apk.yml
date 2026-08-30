@@ -21,6 +21,16 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle', 'mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:
@@ -38,7 +48,9 @@ jobs:
 
       - name: Build Android APK
         working-directory: ./mobile
-        run: flutter build apk --debug
+        run: flutter build apk --debug --no-pub
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true"
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
