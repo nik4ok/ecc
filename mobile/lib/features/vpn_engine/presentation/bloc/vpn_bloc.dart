@@ -142,6 +142,17 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
   }
 
   void _onStatusUpdated(VpnStatusUpdatedEvent event, Emitter<VpnState> emit) {
+    if (event.status == VpnConnectionStatus.disconnected &&
+        state.isConnected &&
+        !state.isDisconnecting) {
+      emit(state.copyWith(
+        status: VpnConnectionStatus.error,
+        errorMessage:
+            'Система закрыла VPN сразу после разрешения. Проверьте уведомления и повторите подключение.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(status: event.status));
   }
 

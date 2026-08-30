@@ -264,6 +264,20 @@ void main() {
       ],
     );
 
+    blocTest<VpnBloc, VpnState>(
+      'unexpected native disconnect while connected becomes error, not silent snap-back',
+      build: buildBloc,
+      seed: () => const VpnState(status: VpnConnectionStatus.connected),
+      act: (bloc) {
+        statusCtrl.add(VpnConnectionStatus.disconnected);
+      },
+      expect: () => [
+        isA<VpnState>()
+            .having((s) => s.status, 'status', VpnConnectionStatus.error)
+            .having((s) => s.errorMessage, 'errorMessage', isNotNull),
+      ],
+    );
+
     // Simulates: user denied VPN permission → native side emits error
     blocTest<VpnBloc, VpnState>(
       'recovers to disconnected when native emits disconnected after error',

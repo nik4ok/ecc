@@ -6,9 +6,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.vpn.app.MainActivity
 
@@ -18,6 +20,7 @@ class NovaVpnService : VpnService() {
         const val ACTION_CONNECT = "com.vpn.app.service.CONNECT"
         const val ACTION_DISCONNECT = "com.vpn.app.service.DISCONNECT"
         const val EXTRA_CONFIG = "vpn_config"
+        private const val TAG = "NovaVpnService"
         private const val NOTIFICATION_CHANNEL_ID = "nova_vpn_channel"
         private const val NOTIFICATION_ID = 101
 
@@ -34,47 +37,47 @@ class NovaVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val action = intent?.action ?: return START_NOT_STICKY
+        if (intent == null) {
+            return START_STICKY
+        }
 
-        when (action) {
+        when (intent.action) {
             ACTION_CONNECT -> {
                 val config = intent.getStringExtra(EXTRA_CONFIG) ?: ""
                 startTunnel(config)
             }
             ACTION_DISCONNECT -> {
-                stopTunnel()
+                stopTunnel(notify = true)
+                return START_NOT_STICKY
             }
+            else -> return START_NOT_STICKY
         }
 
-        return START_NOT_STICKY
+        return if (isRunning) START_STICKY else START_NOT_STICKY
     }
 
     private fun startTunnel(config: String) {
         try {
-            // Show foreground notification required by Android
             val notification = createNotification("NOVA VPN — Защита активна")
-            startForeground(NOTIFICATION_ID, notification)
+            promoteToForeground(notification)
 
-            // Close existing interface if open
             vpnInterface?.close()
             vpnInterface = null
 
-            // Parse IP/DNS from config or use defaults
             val clientIp = extractClientIp(config) ?: "10.8.1.2"
-            val dnsServer = "1.1.1.1"
-            val secondaryDns = "8.8.8.8"
-            val mtu = 1360
-
-            // Establish the Android OS VPN Virtual Interface (tun0)
             val builder = Builder()
                 .setSession("NOVA")
-                .setMtu(mtu)
+                .setMtu(1360)
                 .addAddress(clientIp, 32)
-                .addDnsServer(dnsServer)
-                .addDnsServer(secondaryDns)
+                .addDnsServer("1.1.1.1")
+                .addDnsServer("8.8.8.8")
                 .addRoute("0.0.0.0", 0)
+                .setBlocking(false)
 
-            // Configure intent to open app on notification click
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                builder.setMetered(false)
+            }
+
             val configureIntent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
                 this, 0, configureIntent,
@@ -88,25 +91,39 @@ class NovaVpnService : VpnService() {
                 isRunning = true
                 MainActivity.sendStatus("CONNECTED")
             } else {
-                stopTunnel()
-                MainActivity.sendStatus("ERROR")
+                Log.e(TAG, "VpnService.Builder.establish() returned null")
+                stopTunnel(notify = true, error = true)
             }
         } catch (e: Exception) {
-            e.printStackTrace()
-            stopTunnel()
-            MainActivity.sendStatus("ERROR")
+            Log.e(TAG, "Failed to start VPN tunnel", e)
+            stopTunnel(notify = true, error = true)
         }
     }
 
-    private fun stopTunnel() {
+    private fun promoteToForeground(notification: Notification) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                NOTIFICATION_ID,
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    private fun stopTunnel(notify: Boolean, error: Boolean = false) {
         try {
             vpnInterface?.close()
         } catch (e: Exception) {
-            e.printStackTrace()
+            Log.w(TAG, "Error closing TUN interface", e)
         }
         vpnInterface = null
         isRunning = false
-        MainActivity.sendStatus("DISCONNECTED")
+
+        if (notify) {
+            MainActivity.sendStatus(if (error) "ERROR" else "DISCONNECTED")
+        }
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -150,8 +167,15 @@ class NovaVpnService : VpnService() {
             .build()
     }
 
+    override fun onRevoke() {
+        stopTunnel(notify = true, error = true)
+        super.onRevoke()
+    }
+
     override fun onDestroy() {
-        stopTunnel()
+        if (isRunning || vpnInterface != null) {
+            stopTunnel(notify = true)
+        }
         super.onDestroy()
     }
 }

@@ -23,7 +23,7 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
       });
       return result ?? false;
     } on PlatformException {
-      return false;
+      rethrow;
     } catch (_) {
       return false;
     }
