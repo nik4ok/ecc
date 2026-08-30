@@ -58,7 +58,7 @@ void main() {
 
   group('ToggleVpnEvent — connect via AmneziaWG', () {
     blocTest<VpnBloc, VpnState>(
-      'emits [connecting, connected] on successful startTunnel',
+      'emits [connecting] on successful startTunnel and waits for native CONNECTED',
       build: () {
         stubDataSource(mockDataSource);
         return VpnBloc(dataSource: mockDataSource);
@@ -67,7 +67,45 @@ void main() {
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       expect: () => [
         isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
+      ],
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'promotes to connected only when native stream emits CONNECTED',
+      build: () {
+        final controllers = stubDataSource(mockDataSource);
+        statusCtrl = controllers.status;
+        statsCtrl = controllers.stats;
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
+      act: (bloc) async {
+        bloc.add(const ToggleVpnEvent());
+        await Future<void>.delayed(Duration.zero);
+        statusCtrl.add(VpnConnectionStatus.connected);
+      },
+      expect: () => [
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
         isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connected),
+      ],
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'ignores stale native DISCONNECTED while still connecting after permission dialog',
+      build: () {
+        final controllers = stubDataSource(mockDataSource);
+        statusCtrl = controllers.status;
+        statsCtrl = controllers.stats;
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
+      act: (bloc) async {
+        bloc.add(const ToggleVpnEvent());
+        await Future<void>.delayed(Duration.zero);
+        statusCtrl.add(VpnConnectionStatus.disconnected);
+      },
+      expect: () => [
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
       ],
     );
 
@@ -87,7 +125,7 @@ void main() {
 
   group('ToggleVpnEvent — connect via VLESS Reality', () {
     blocTest<VpnBloc, VpnState>(
-      'emits [connecting, connected] for VLESS profile',
+      'emits [connecting] for VLESS profile until native confirms CONNECTED',
       build: () {
         stubDataSource(mockDataSource);
         return VpnBloc(dataSource: mockDataSource);
@@ -96,7 +134,6 @@ void main() {
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       expect: () => [
         isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
-        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connected),
       ],
     );
   });

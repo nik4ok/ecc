@@ -22,11 +22,21 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
         'config': configJson,
       });
       return result ?? false;
-    } on PlatformException {
-      rethrow;
+    } on PlatformException catch (e) {
+      if (e.code == 'PERMISSION_DENIED') {
+        return false;
+      }
+      return _isTunnelActive();
     } catch (_) {
-      return false;
+      return _isTunnelActive();
     }
+  }
+
+  Future<bool> _isTunnelActive() async {
+    final status = await getTunnelState();
+    return status == VpnConnectionStatus.connecting ||
+        status == VpnConnectionStatus.handshaking ||
+        status == VpnConnectionStatus.connected;
   }
 
   @override
@@ -43,20 +53,7 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
   Future<VpnConnectionStatus> getTunnelState() async {
     try {
       final String? status = await _channel.invokeMethod<String>('getTunnelState');
-      switch (status?.toUpperCase()) {
-        case 'CONNECTING':
-          return VpnConnectionStatus.connecting;
-        case 'HANDSHAKING':
-          return VpnConnectionStatus.handshaking;
-        case 'CONNECTED':
-          return VpnConnectionStatus.connected;
-        case 'DISCONNECTING':
-          return VpnConnectionStatus.disconnecting;
-        case 'ERROR':
-          return VpnConnectionStatus.error;
-        default:
-          return VpnConnectionStatus.disconnected;
-      }
+      return _mapStatus(status) ?? VpnConnectionStatus.disconnected;
     } catch (_) {
       return VpnConnectionStatus.disconnected;
     }
@@ -66,22 +63,9 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
   Stream<VpnConnectionStatus> get statusStream {
     try {
       return _statusEventChannel.receiveBroadcastStream().map((dynamic event) {
-        final statusStr = (event is Map ? event['status'] : event)?.toString().toUpperCase();
-        switch (statusStr) {
-          case 'CONNECTING':
-            return VpnConnectionStatus.connecting;
-          case 'HANDSHAKING':
-            return VpnConnectionStatus.handshaking;
-          case 'CONNECTED':
-            return VpnConnectionStatus.connected;
-          case 'DISCONNECTING':
-            return VpnConnectionStatus.disconnecting;
-          case 'ERROR':
-            return VpnConnectionStatus.error;
-          default:
-            return VpnConnectionStatus.disconnected;
-        }
-      }).handleError((_) => VpnConnectionStatus.disconnected);
+        final statusStr = (event is Map ? event['status'] : event)?.toString();
+        return _mapStatus(statusStr);
+      }).where((status) => status != null).cast<VpnConnectionStatus>();
     } catch (_) {
       return const Stream.empty();
     }
@@ -102,5 +86,24 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
     } catch (_) {
       return const Stream.empty();
     }
+  }
+}
+
+VpnConnectionStatus? _mapStatus(String? rawStatus) {
+  switch (rawStatus?.toUpperCase()) {
+    case 'CONNECTING':
+      return VpnConnectionStatus.connecting;
+    case 'HANDSHAKING':
+      return VpnConnectionStatus.handshaking;
+    case 'CONNECTED':
+      return VpnConnectionStatus.connected;
+    case 'DISCONNECTING':
+      return VpnConnectionStatus.disconnecting;
+    case 'ERROR':
+      return VpnConnectionStatus.error;
+    case 'DISCONNECTED':
+      return VpnConnectionStatus.disconnected;
+    default:
+      return null;
   }
 }

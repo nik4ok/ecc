@@ -77,9 +77,7 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
       try {
         final config = _generateConfig(profile);
         final success = await _dataSource.startTunnel(config);
-        if (success) {
-          emit(state.copyWith(status: VpnConnectionStatus.connected));
-        } else {
+        if (!success && state.isConnecting) {
           emit(state.copyWith(
             status: VpnConnectionStatus.error,
             errorMessage: "Не удалось установить соединение с сервером",
@@ -142,6 +140,12 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
   }
 
   void _onStatusUpdated(VpnStatusUpdatedEvent event, Emitter<VpnState> emit) {
+    if (event.status == VpnConnectionStatus.disconnected &&
+        state.isConnecting &&
+        !state.isDisconnecting) {
+      return;
+    }
+
     if (event.status == VpnConnectionStatus.disconnected &&
         state.isConnected &&
         !state.isDisconnecting) {
