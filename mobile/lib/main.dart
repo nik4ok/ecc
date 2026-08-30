@@ -21,7 +21,7 @@ class StealthVpnApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => VpnBloc(dataSource: vpnDataSource),
+      create: (_) => VpnBloc(dataSource: vpnDataSource)..add(const InitializeVpnEvent()),
       child: MaterialApp(
         title: 'Stealth VPN',
         debugShowCheckedModeBanner: false,
@@ -54,8 +54,8 @@ class _VpnHomeScreenState extends State<VpnHomeScreen> with SingleTickerProvider
     super.initState();
     _pulseController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 2),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 1800),
+    );
   }
 
   @override
@@ -64,290 +64,382 @@ class _VpnHomeScreenState extends State<VpnHomeScreen> with SingleTickerProvider
     super.dispose();
   }
 
+  void _syncAnimationWithState(VpnState state) {
+    if (state.isConnected || state.isConnecting) {
+      if (!_pulseController.isAnimating) {
+        _pulseController.repeat(reverse: true);
+      }
+    } else {
+      if (_pulseController.isAnimating) {
+        _pulseController.stop();
+        _pulseController.reset();
+      }
+    }
+  }
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<VpnBloc, VpnState>(
+    return BlocConsumer<VpnBloc, VpnState>(
+      listener: (context, state) {
+        _syncAnimationWithState(state);
+      },
       builder: (context, state) {
         final isConnected = state.isConnected;
         final isConnecting = state.isConnecting;
+        final isError = state.status == VpnConnectionStatus.error;
 
         return Scaffold(
           body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
-              child: Column(
-                children: [
-                  // Top Bar
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: MediaQuery.of(context).size.height -
+                      MediaQuery.of(context).padding.top -
+                      MediaQuery.of(context).padding.bottom -
+                      32,
+                ),
+                child: IntrinsicHeight(
+                  child: Column(
                     children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      // Top App Bar
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text(
-                            'STEALTH VPN',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              letterSpacing: 1.5,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Row(
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF0284C7).withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: const Text(
-                                  'AmneziaWG 2.0',
-                                  style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF38BDF8),
-                                  ),
+                              const Text(
+                                'STEALTH VPN',
+                                style: TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 1.5,
+                                  color: Colors.white,
                                 ),
                               ),
-                              const SizedBox(width: 6),
-                              Text(
-                                '1 Gbps • Анти-DPI',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey.shade400,
-                                ),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0284C7).withOpacity(0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      'AmneziaWG 2.0',
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF38BDF8),
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '1 Gbps • Анти-DPI',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade400,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
-                        ],
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: isConnected
-                              ? const Color(0xFF10B981).withOpacity(0.15)
-                              : isConnecting
-                                  ? const Color(0xFFF59E0B).withOpacity(0.15)
-                                  : Colors.grey.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isConnected
-                                ? const Color(0xFF10B981)
-                                : isConnecting
-                                    ? const Color(0xFFF59E0B)
-                                    : Colors.grey.shade800,
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            CircleAvatar(
-                              radius: 4,
-                              backgroundColor: isConnected
-                                  ? const Color(0xFF10B981)
-                                  : isConnecting
-                                      ? const Color(0xFFF59E0B)
-                                      : Colors.grey.shade600,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              isConnected
-                                  ? 'ЗАЩИЩЕНО'
-                                  : isConnecting
-                                      ? 'ПОДКЛЮЧЕНИЕ'
-                                      : 'ОТКЛЮЧЕНО',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: isConnected
-                                    ? const Color(0xFF10B981)
-                                    : isConnecting
-                                        ? const Color(0xFFF59E0B)
-                                        : Colors.grey.shade400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const Spacer(),
-
-                  // Power Button with Animated Glow
-                  Center(
-                    child: GestureDetector(
-                      onTap: () {
-                        context.read<VpnBloc>().add(const ToggleVpnEvent());
-                      },
-                      child: AnimatedBuilder(
-                        animation: _pulseController,
-                        builder: (context, child) {
-                          return Container(
-                            width: 195,
-                            height: 195,
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                             decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF0F172A),
+                              color: isConnected
+                                  ? const Color(0xFF10B981).withOpacity(0.15)
+                                  : isConnecting
+                                      ? const Color(0xFFF59E0B).withOpacity(0.15)
+                                      : isError
+                                          ? const Color(0xFFEF4444).withOpacity(0.15)
+                                          : Colors.grey.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
                               border: Border.all(
                                 color: isConnected
                                     ? const Color(0xFF10B981)
                                     : isConnecting
                                         ? const Color(0xFFF59E0B)
-                                        : const Color(0xFF0284C7).withOpacity(0.4),
-                                width: 3,
+                                        : isError
+                                            ? const Color(0xFFEF4444)
+                                            : Colors.grey.shade800,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: isConnected
-                                      ? const Color(0xFF10B981).withOpacity(0.25 + _pulseController.value * 0.2)
-                                      : isConnecting
-                                          ? const Color(0xFFF59E0B).withOpacity(0.3)
-                                          : const Color(0xFF0284C7).withOpacity(0.1),
-                                  blurRadius: 35,
-                                  spreadRadius: isConnected ? 8 : 2,
-                                ),
-                              ],
                             ),
-                            child: Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.power_settings_new_rounded,
-                                    size: 58,
+                            child: Row(
+                              children: [
+                                CircleAvatar(
+                                  radius: 4,
+                                  backgroundColor: isConnected
+                                      ? const Color(0xFF10B981)
+                                      : isConnecting
+                                          ? const Color(0xFFF59E0B)
+                                          : isError
+                                              ? const Color(0xFFEF4444)
+                                              : Colors.grey.shade600,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  isConnected
+                                      ? 'ЗАЩИЩЕНО'
+                                      : isConnecting
+                                          ? 'ПОДКЛЮЧЕНИЕ'
+                                          : isError
+                                              ? 'ОШИБКА'
+                                              : 'ОТКЛЮЧЕНО',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
                                     color: isConnected
                                         ? const Color(0xFF10B981)
                                         : isConnecting
                                             ? const Color(0xFFF59E0B)
-                                            : Colors.white,
+                                            : isError
+                                                ? const Color(0xFFEF4444)
+                                                : Colors.grey.shade400,
                                   ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    isConnected
-                                        ? 'ОТКЛЮЧИТЬ'
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      if (state.errorMessage != null) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEF4444).withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: const Color(0xFFEF4444).withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, size: 16, color: Color(0xFFEF4444)),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  state.errorMessage!,
+                                  style: const TextStyle(fontSize: 12, color: Color(0xFFEF4444)),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      const Spacer(),
+
+                      // Central Glowing Power Button
+                      Center(
+                        child: GestureDetector(
+                          onTap: () {
+                            context.read<VpnBloc>().add(const ToggleVpnEvent());
+                          },
+                          child: AnimatedBuilder(
+                            animation: _pulseController,
+                            builder: (context, child) {
+                              final glowScale = isConnected || isConnecting ? _pulseController.value : 0.0;
+                              return Container(
+                                width: 195,
+                                height: 195,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: const Color(0xFF0F172A),
+                                  border: Border.all(
+                                    color: isConnected
+                                        ? const Color(0xFF10B981)
                                         : isConnecting
-                                            ? 'СОЕДИНЕНИЕ...'
-                                            : 'ПОДКЛЮЧИТЬ',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.8,
+                                            ? const Color(0xFFF59E0B)
+                                            : const Color(0xFF0284C7).withOpacity(0.4),
+                                    width: 3,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
                                       color: isConnected
-                                          ? const Color(0xFF10B981)
+                                          ? const Color(0xFF10B981).withOpacity(0.25 + glowScale * 0.25)
                                           : isConnecting
-                                              ? const Color(0xFFF59E0B)
-                                              : Colors.white,
+                                              ? const Color(0xFFF59E0B).withOpacity(0.3)
+                                              : const Color(0xFF0284C7).withOpacity(0.08),
+                                      blurRadius: 35,
+                                      spreadRadius: isConnected ? (6 + glowScale * 6) : 2,
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.power_settings_new_rounded,
+                                        size: 58,
+                                        color: isConnected
+                                            ? const Color(0xFF10B981)
+                                            : isConnecting
+                                                ? const Color(0xFFF59E0B)
+                                                : Colors.white,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        isConnected
+                                            ? 'ОТКЛЮЧИТЬ'
+                                            : isConnecting
+                                                ? 'СОЕДИНЕНИЕ...'
+                                                : 'ПОДКЛЮЧИТЬ',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w800,
+                                          letterSpacing: 0.8,
+                                          color: isConnected
+                                              ? const Color(0xFF10B981)
+                                              : isConnecting
+                                                  ? const Color(0xFFF59E0B)
+                                                  : Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+
+                      if (isConnected) ...[
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.arrow_downward_rounded, size: 14, color: Color(0xFF10B981)),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatBytes(state.rxBytes),
+                              style: const TextStyle(fontSize: 12, color: Colors.white70, fontFamily: 'monospace'),
+                            ),
+                            const SizedBox(width: 16),
+                            const Icon(Icons.arrow_upward_rounded, size: 14, color: Color(0xFF38BDF8)),
+                            const SizedBox(width: 4),
+                            Text(
+                              _formatBytes(state.txBytes),
+                              style: const TextStyle(fontSize: 12, color: Colors.white70, fontFamily: 'monospace'),
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      const Spacer(),
+
+                      // Smart Split-Tunneling Quick Tile
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A).withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.white.withOpacity(0.06)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.alt_route_rounded, color: Color(0xFF38BDF8), size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Умный обход сервисов РФ',
+                                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                                  ),
+                                  Text(
+                                    'Сбер, Т-Банк, Госуслуги напрямую',
+                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: state.splitTunnelingEnabled,
+                              activeColor: const Color(0xFF10B981),
+                              onChanged: (val) {
+                                context.read<VpnBloc>().add(ToggleSplitTunnelingEvent(val));
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // Selected Node Card
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF0F172A),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: Colors.white.withOpacity(0.08)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Text('🇳🇱', style: TextStyle(fontSize: 32)),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    state.currentProfile.name,
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    'IP: ${state.currentProfile.serverAddress} • Порт ${state.currentProfile.serverPort} (1 Gbps)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      color: Colors.grey.shade400,
+                                      fontFamily: 'monospace',
                                     ),
                                   ),
                                 ],
                               ),
                             ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-
-                  const Spacer(),
-
-                  // Smart Split-Tunneling Quick Tile
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A).withOpacity(0.7),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Colors.white.withOpacity(0.06)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.alt_route_rounded, color: Color(0xFF38BDF8), size: 20),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Умный обход сервисов РФ',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF10B981).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              Text(
-                                'Сбер, Т-Банк, Госуслуги напрямую',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Switch(
-                          value: state.splitTunnelingEnabled,
-                          activeColor: const Color(0xFF10B981),
-                          onChanged: (val) {
-                            context.read<VpnBloc>().add(ToggleSplitTunnelingEvent(val));
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Selected Node Card
-                  Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF0F172A),
-                      borderRadius: BorderRadius.circular(18),
-                      border: Border.all(color: Colors.white.withOpacity(0.08)),
-                    ),
-                    child: Row(
-                      children: [
-                        const Text('🇳🇱', style: TextStyle(fontSize: 32)),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                state.currentProfile.name,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'IP: ${state.currentProfile.serverAddress} • Порт ${state.currentProfile.serverPort} (1 Gbps)',
+                              child: const Text(
+                                '16 ms',
                                 style: TextStyle(
                                   fontSize: 11,
-                                  color: Colors.grey.shade400,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF10B981),
                                   fontFamily: 'monospace',
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF10B981).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: const Text(
-                            '16 ms',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF10B981),
-                              fontFamily: 'monospace',
                             ),
-                          ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                ],
+                ),
               ),
             ),
           ),

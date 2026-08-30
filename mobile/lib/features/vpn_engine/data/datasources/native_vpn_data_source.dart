@@ -5,6 +5,7 @@ import '../../domain/entities/vpn_profile.dart';
 abstract class NativeVpnDataSource {
   Future<bool> startTunnel(String configJson);
   Future<bool> stopTunnel();
+  Future<VpnConnectionStatus> getTunnelState();
   Stream<VpnConnectionStatus> get statusStream;
   Stream<Map<String, int>> get trafficStatsStream;
 }
@@ -21,9 +22,8 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
         'config': configJson,
       });
       return result ?? false;
-    } on PlatformException catch (e) {
-      // In development / demo mode fallback gracefully
-      return true;
+    } on PlatformException {
+      return false;
     } catch (_) {
       return false;
     }
@@ -34,10 +34,31 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
     try {
       final bool? result = await _channel.invokeMethod<bool>('stopVpn');
       return result ?? false;
-    } on PlatformException {
-      return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  @override
+  Future<VpnConnectionStatus> getTunnelState() async {
+    try {
+      final String? status = await _channel.invokeMethod<String>('getTunnelState');
+      switch (status?.toUpperCase()) {
+        case 'CONNECTING':
+          return VpnConnectionStatus.connecting;
+        case 'HANDSHAKING':
+          return VpnConnectionStatus.handshaking;
+        case 'CONNECTED':
+          return VpnConnectionStatus.connected;
+        case 'DISCONNECTING':
+          return VpnConnectionStatus.disconnecting;
+        case 'ERROR':
+          return VpnConnectionStatus.error;
+        default:
+          return VpnConnectionStatus.disconnected;
+      }
+    } catch (_) {
+      return VpnConnectionStatus.disconnected;
     }
   }
 
@@ -45,7 +66,8 @@ class NativeVpnDataSourceImpl implements NativeVpnDataSource {
   Stream<VpnConnectionStatus> get statusStream {
     try {
       return _statusEventChannel.receiveBroadcastStream().map((dynamic event) {
-        switch (event.toString()) {
+        final statusStr = (event is Map ? event['status'] : event)?.toString().toUpperCase();
+        switch (statusStr) {
           case 'CONNECTING':
             return VpnConnectionStatus.connecting;
           case 'HANDSHAKING':

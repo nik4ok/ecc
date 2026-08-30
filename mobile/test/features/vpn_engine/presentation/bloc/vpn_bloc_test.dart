@@ -61,9 +61,9 @@ void main() {
       'emits [connecting, connected] on successful startTunnel',
       build: () {
         stubDataSource(mockDataSource);
-        return VpnBloc(dataSource: mockDataSource)
-          ..add(ChangeProfileEvent(amneziaProfile()));
+        return VpnBloc(dataSource: mockDataSource);
       },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       expect: () => [
         isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
@@ -75,9 +75,9 @@ void main() {
       'calls startTunnel exactly once',
       build: () {
         stubDataSource(mockDataSource);
-        return VpnBloc(dataSource: mockDataSource)
-          ..add(ChangeProfileEvent(amneziaProfile()));
+        return VpnBloc(dataSource: mockDataSource);
       },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       verify: (_) => verify(() => mockDataSource.startTunnel(any())).called(1),
     );
@@ -90,9 +90,9 @@ void main() {
       'emits [connecting, connected] for VLESS profile',
       build: () {
         stubDataSource(mockDataSource);
-        return VpnBloc(dataSource: mockDataSource)
-          ..add(ChangeProfileEvent(vlessProfile()));
+        return VpnBloc(dataSource: mockDataSource);
       },
+      seed: () => VpnState(currentProfile: vlessProfile()),
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       expect: () => [
         isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
@@ -108,9 +108,9 @@ void main() {
       'emits [connecting, error] when startTunnel returns false',
       build: () {
         stubDataSource(mockDataSource, startTunnelResult: false);
-        return VpnBloc(dataSource: mockDataSource)
-          ..add(ChangeProfileEvent(amneziaProfile()));
+        return VpnBloc(dataSource: mockDataSource);
       },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       expect: () => [
         isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
@@ -124,9 +124,9 @@ void main() {
       'error state includes non-empty errorMessage',
       build: () {
         stubDataSource(mockDataSource, startTunnelResult: false);
-        return VpnBloc(dataSource: mockDataSource)
-          ..add(ChangeProfileEvent(amneziaProfile()));
+        return VpnBloc(dataSource: mockDataSource);
       },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       verify: (bloc) {
         expect(bloc.state.errorMessage, isNotEmpty);
@@ -141,10 +141,12 @@ void main() {
       'emits [disconnecting, disconnected] when currently connected',
       build: () {
         stubDataSource(mockDataSource);
-        return VpnBloc(dataSource: mockDataSource)
-          ..add(ChangeProfileEvent(amneziaProfile()));
+        return VpnBloc(dataSource: mockDataSource);
       },
-      seed: () => const VpnState(status: VpnConnectionStatus.connected),
+      seed: () => VpnState(
+        status: VpnConnectionStatus.connected,
+        currentProfile: amneziaProfile(),
+      ),
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       expect: () => [
         isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.disconnecting),

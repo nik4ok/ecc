@@ -15,37 +15,93 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
   VpnBloc({required NativeVpnDataSource dataSource})
       : _dataSource = dataSource,
         super(const VpnState()) {
+    on<InitializeVpnEvent>(_onInitialize);
     on<ToggleVpnEvent>(_onToggleVpn);
     on<ChangeProfileEvent>(_onChangeProfile);
     on<ToggleSplitTunnelingEvent>(_onToggleSplitTunneling);
     on<VpnStatusUpdatedEvent>(_onStatusUpdated);
     on<VpnStatsUpdatedEvent>(_onStatsUpdated);
 
-    _statusSub = _dataSource.statusStream.listen((status) {
-      add(VpnStatusUpdatedEvent(status));
-    });
+    _initSubscriptions();
+  }
 
-    _statsSub = _dataSource.trafficStatsStream.listen((stats) {
-      add(VpnStatsUpdatedEvent(
-        rxBytes: stats['rx'] ?? 0,
-        txBytes: stats['tx'] ?? 0,
-      ));
-    });
+  void _initSubscriptions() {
+    _statusSub = _dataSource.statusStream.listen(
+      (status) {
+        if (!isClosed) {
+          add(VpnStatusUpdatedEvent(status));
+        }
+      },
+      onError: (_) {
+        if (!isClosed) {
+          add(const VpnStatusUpdatedEvent(VpnConnectionStatus.error));
+        }
+      },
+    );
+
+    _statsSub = _dataSource.trafficStatsStream.listen(
+      (stats) {
+        if (!isClosed) {
+          add(VpnStatsUpdatedEvent(
+            rxBytes: stats['rx'] ?? 0,
+            txBytes: stats['tx'] ?? 0,
+          ));
+        }
+      },
+      onError: (_) {},
+    );
+  }
+
+  Future<void> _onInitialize(InitializeVpnEvent event, Emitter<VpnState> emit) async {
+    final currentStatus = await _dataSource.getTunnelState();
+    if (currentStatus != VpnConnectionStatus.disconnected) {
+      emit(state.copyWith(status: currentStatus));
+    }
   }
 
   Future<void> _onToggleVpn(ToggleVpnEvent event, Emitter<VpnState> emit) async {
+    if (state.isDisconnecting) return;
+
     if (state.isConnected || state.isConnecting) {
       emit(state.copyWith(status: VpnConnectionStatus.disconnecting));
       await _dataSource.stopTunnel();
       emit(state.copyWith(status: VpnConnectionStatus.disconnected));
     } else {
-      emit(state.copyWith(status: VpnConnectionStatus.connecting));
+      emit(state.copyWith(
+        status: VpnConnectionStatus.connecting,
+        errorMessage: null,
+      ));
+
       final profile = state.currentProfile;
 
-      String config;
-      if (profile.protocolType == VpnProtocolType.amneziaWg && profile.amneziaParams != null) {
-        config = AmneziaWgConfigGenerator.generateClientConfig(
-          clientPrivateKey: profile.clientPrivateKey ?? "aGVsbG93b3JsZHByaXZhdGVrZXkxMjM0NTY3ODkwMTI=",
+      try {
+        final config = _generateConfig(profile);
+        final success = await _dataSource.startTunnel(config);
+        if (success) {
+          emit(state.copyWith(status: VpnConnectionStatus.connected));
+        } else {
+          emit(state.copyWith(
+            status: VpnConnectionStatus.error,
+            errorMessage: "Не удалось установить соединение с сервером",
+          ));
+        }
+      } catch (e) {
+        emit(state.copyWith(
+          status: VpnConnectionStatus.error,
+          errorMessage: "Ошибка конфигурации: $e",
+        ));
+      }
+    }
+  }
+
+  String _generateConfig(VpnProfile profile) {
+    switch (profile.protocolType) {
+      case VpnProtocolType.amneziaWg:
+        if (profile.amneziaParams == null) {
+          throw StateError('Параметры AmneziaWG не настроены для профиля: ${profile.name}');
+        }
+        return AmneziaWgConfigGenerator.generateClientConfig(
+          clientPrivateKey: profile.clientPrivateKey ?? "cHJpdmF0ZWtleXRlc3Q=",
           clientAddress: profile.clientAddress ?? "10.8.1.2/32",
           serverPublicKey: profile.publicKey ?? "dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ=",
           serverAddress: profile.serverAddress,
@@ -53,8 +109,9 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
           params: profile.amneziaParams!,
           presharedKey: profile.presharedKey,
         );
-      } else {
-        config = SingBoxConfigGenerator.generateVlessRealityConfig(
+
+      case VpnProtocolType.vlessReality:
+        return SingBoxConfigGenerator.generateVlessRealityConfig(
           serverAddress: profile.serverAddress,
           serverPort: profile.serverPort,
           uuid: profile.uuid ?? "",
@@ -62,17 +119,17 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
           shortId: profile.shortId ?? "",
           sni: profile.sni ?? "www.microsoft.com",
         );
-      }
 
-      final success = await _dataSource.startTunnel(config);
-      if (success) {
-        emit(state.copyWith(status: VpnConnectionStatus.connected));
-      } else {
-        emit(state.copyWith(
-          status: VpnConnectionStatus.error,
-          errorMessage: "Не удалось установить соединение",
-        ));
-      }
+      case VpnProtocolType.hysteria2:
+      case VpnProtocolType.auto:
+        return SingBoxConfigGenerator.generateVlessRealityConfig(
+          serverAddress: profile.serverAddress,
+          serverPort: profile.serverPort,
+          uuid: profile.uuid ?? "",
+          publicKey: profile.publicKey ?? "",
+          shortId: profile.shortId ?? "",
+          sni: profile.sni ?? "www.microsoft.com",
+        );
     }
   }
 
@@ -93,9 +150,9 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
   }
 
   @override
-  Future<void> close() {
-    _statusSub?.cancel();
-    _statsSub?.cancel();
+  Future<void> close() async {
+    await _statusSub?.cancel();
+    await _statsSub?.cancel();
     return super.close();
   }
 }

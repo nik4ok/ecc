@@ -21,10 +21,13 @@ class AmneziaWgConfigGenerator {
       throw ArgumentError('Invalid AmneziaWG parameters: ${errors.join('; ')}');
     }
 
+    final isIpv6 = serverAddress.contains(':') && !serverAddress.startsWith('[');
+    final endpoint = isIpv6 ? '[$serverAddress]:$serverPort' : '$serverAddress:$serverPort';
+
     final buffer = StringBuffer()
       ..writeln('[Interface]')
-      ..writeln('PrivateKey = $clientPrivateKey')
-      ..writeln('Address = $clientAddress')
+      ..writeln('PrivateKey = ${clientPrivateKey.trim()}')
+      ..writeln('Address = ${clientAddress.trim()}')
       ..writeln('DNS = ${dnsServers.join(', ')}')
       ..writeln('MTU = $mtu')
       ..writeln('Jc = ${params.jc}')
@@ -42,22 +45,22 @@ class AmneziaWgConfigGenerator {
       ..writeln('H3 = ${params.h3}')
       ..writeln('H4 = ${params.h4}');
 
-    if (params.headerProtectionKey != null && params.headerProtectionKey!.isNotEmpty) {
-      buffer.writeln('HeaderProtectionKey = ${params.headerProtectionKey}');
+    if (params.headerProtectionKey != null && params.headerProtectionKey!.trim().isNotEmpty) {
+      buffer.writeln('HeaderProtectionKey = ${params.headerProtectionKey!.trim()}');
     }
 
     buffer
       ..writeln()
       ..writeln('[Peer]')
-      ..writeln('PublicKey = $serverPublicKey');
+      ..writeln('PublicKey = ${serverPublicKey.trim()}');
 
-    if (presharedKey != null && presharedKey.isNotEmpty) {
-      buffer.writeln('PresharedKey = $presharedKey');
+    if (presharedKey != null && presharedKey.trim().isNotEmpty) {
+      buffer.writeln('PresharedKey = ${presharedKey.trim()}');
     }
 
     buffer
       ..writeln('AllowedIPs = ${allowedIps.join(', ')}')
-      ..writeln('Endpoint = $serverAddress:$serverPort')
+      ..writeln('Endpoint = $endpoint')
       ..writeln('PersistentKeepalive = $persistentKeepalive');
 
     return buffer.toString();

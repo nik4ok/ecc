@@ -8,6 +8,10 @@ abstract class VpnEvent extends Equatable {
   List<Object?> get props => [];
 }
 
+class InitializeVpnEvent extends VpnEvent {
+  const InitializeVpnEvent();
+}
+
 class ToggleVpnEvent extends VpnEvent {
   const ToggleVpnEvent();
 }

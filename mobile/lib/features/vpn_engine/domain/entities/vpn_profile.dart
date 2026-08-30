@@ -59,6 +59,7 @@ class VpnProfile extends Equatable {
         sni,
         hysteriaPassword,
         obfsPassword,
+        clientPrivateKey,
         clientAddress,
         presharedKey,
         amneziaParams,
