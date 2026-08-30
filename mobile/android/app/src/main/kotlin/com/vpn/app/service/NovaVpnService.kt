@@ -21,7 +21,8 @@ class NovaVpnService : VpnService() {
         private const val NOTIFICATION_CHANNEL_ID = "nova_vpn_channel"
         private const val NOTIFICATION_ID = 101
 
-        var isRunning = false
+        @Volatile
+        var isRunning: Boolean = false
             private set
     }
 
@@ -85,16 +86,15 @@ class NovaVpnService : VpnService() {
 
             if (vpnInterface != null) {
                 isRunning = true
-                MainActivity.isConnected = true
-                MainActivity.statusSink?.success("CONNECTED")
+                MainActivity.sendStatus("CONNECTED")
             } else {
                 stopTunnel()
-                MainActivity.statusSink?.success("ERROR")
+                MainActivity.sendStatus("ERROR")
             }
         } catch (e: Exception) {
             e.printStackTrace()
             stopTunnel()
-            MainActivity.statusSink?.success("ERROR")
+            MainActivity.sendStatus("ERROR")
         }
     }
 
@@ -106,8 +106,7 @@ class NovaVpnService : VpnService() {
         }
         vpnInterface = null
         isRunning = false
-        MainActivity.isConnected = false
-        MainActivity.statusSink?.success("DISCONNECTED")
+        MainActivity.sendStatus("DISCONNECTED")
 
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()

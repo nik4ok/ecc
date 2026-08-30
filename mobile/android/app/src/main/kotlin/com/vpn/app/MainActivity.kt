@@ -1,20 +1,20 @@
 package com.vpn.app
 
 import android.app.Activity
+import android.content.Context
 import android.content.Intent
+import android.net.TrafficStats
 import android.net.VpnService
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.NonNull
-import com.wireguard.android.backend.GoBackend
-import com.wireguard.android.backend.Tunnel
-import com.wireguard.config.Config
+import androidx.core.content.ContextCompat
+import com.vpn.app.service.NovaVpnService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.*
-import java.io.BufferedReader
-import java.io.ByteArrayInputStream
-import java.io.StringReader
 
 class MainActivity : FlutterActivity() {
     private val ENGINE_CHANNEL = "com.vpn.app/engine"
@@ -25,64 +25,42 @@ class MainActivity : FlutterActivity() {
     private var pendingVpnConfig: String? = null
     private var pendingResult: MethodChannel.Result? = null
 
-    private var backend: GoBackend? = null
-    private val tunnel = object : Tunnel {
-        override fun getName(): String = "nova_vpn"
-        override fun onStateChange(state: Tunnel.State) {
-            val statusStr = when (state) {
-                Tunnel.State.UP -> "CONNECTED"
-                Tunnel.State.DOWN -> "DISCONNECTED"
-                Tunnel.State.TOGGLE -> "CONNECTING"
-            }
-            isConnected = (state == Tunnel.State.UP)
-            runOnUiThread {
-                statusSink?.success(statusStr)
-            }
-        }
-    }
-
     private val activityScope = CoroutineScope(Dispatchers.Main + Job())
     private var statsJob: Job? = null
 
     companion object {
+        private val mainHandler = Handler(Looper.getMainLooper())
         var statusSink: EventChannel.EventSink? = null
         var statsSink: EventChannel.EventSink? = null
-        var isConnected: Boolean = false
+
+        var isConnected: Boolean
+            get() = NovaVpnService.isRunning
+            set(value) {
+                // Synchronized with NovaVpnService
+            }
+
+        fun sendStatus(status: String) {
+            mainHandler.post {
+                statusSink?.success(status)
+            }
+        }
     }
 
     override fun configureFlutterEngine(@NonNull flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
 
-        try {
-            backend = GoBackend(this)
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-
-        // MethodChannel for commands
+        // MethodChannel for VPN management commands
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, ENGINE_CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "startVpn" -> {
-                    val config = call.argument<String>("config")
-                    if (config == null) {
-                        result.error("INVALID_CONFIG", "Config cannot be null", null)
-                        return@setMethodCallHandler
-                    }
-
-                    val vpnIntent = VpnService.prepare(this)
-                    if (vpnIntent != null) {
-                        pendingVpnConfig = config
-                        pendingResult = result
-                        startActivityForResult(vpnIntent, VPN_REQUEST_CODE)
-                    } else {
-                        connectTunnel(config, result)
-                    }
+                    val config = call.argument<String>("config") ?: ""
+                    prepareAndStartVpn(config, result)
                 }
                 "stopVpn" -> {
-                    disconnectTunnel(result)
+                    stopVpnService(result)
                 }
                 "getTunnelState" -> {
-                    val state = if (isConnected) "CONNECTED" else "DISCONNECTED"
+                    val state = if (NovaVpnService.isRunning) "CONNECTED" else "DISCONNECTED"
                     result.success(state)
                 }
                 else -> {
@@ -96,7 +74,8 @@ class MainActivity : FlutterActivity() {
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     statusSink = events
-                    statusSink?.success(if (isConnected) "CONNECTED" else "DISCONNECTED")
+                    val initialState = if (NovaVpnService.isRunning) "CONNECTED" else "DISCONNECTED"
+                    sendStatus(initialState)
                 }
 
                 override fun onCancel(arguments: Any?) {
@@ -105,137 +84,98 @@ class MainActivity : FlutterActivity() {
             }
         )
 
-        // EventChannel for bandwidth stats
+        // EventChannel for network traffic stats (Rx / Tx)
         EventChannel(flutterEngine.dartExecutor.binaryMessenger, STATS_CHANNEL).setStreamHandler(
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     statsSink = events
+                    if (NovaVpnService.isRunning) {
+                        startStatsMonitoring()
+                    }
                 }
 
                 override fun onCancel(arguments: Any?) {
                     statsSink = null
+                    stopStatsMonitoring()
                 }
             }
         )
     }
 
+    private fun prepareAndStartVpn(config: String, result: MethodChannel.Result) {
+        val vpnIntent = VpnService.prepare(this)
+        if (vpnIntent != null) {
+            pendingVpnConfig = config
+            pendingResult = result
+            startActivityForResult(vpnIntent, VPN_REQUEST_CODE)
+        } else {
+            startVpnService(config)
+            result.success(true)
+        }
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == VPN_REQUEST_CODE) {
-            if (resultCode == Activity.RESULT_OK && pendingVpnConfig != null) {
-                val config = pendingVpnConfig!!
-                val res = pendingResult
-                connectTunnel(config, res)
+            if (resultCode == Activity.RESULT_OK) {
+                val config = pendingVpnConfig ?: ""
+                startVpnService(config)
+                pendingResult?.success(true)
             } else {
-                pendingResult?.error("PERMISSION_DENIED", "User denied VPN permission", null)
+                sendStatus("DISCONNECTED")
+                pendingResult?.error("PERMISSION_DENIED", "Пользователь отклонил VPN-разрешение", null)
             }
             pendingVpnConfig = null
             pendingResult = null
         }
     }
 
-    private fun connectTunnel(rawConfig: String, result: MethodChannel.Result?) {
-        activityScope.launch(Dispatchers.IO) {
-            try {
-                val sanitizedConfigStr = sanitizeWireGuardConfig(rawConfig)
-                val config = Config.parse(ByteArrayInputStream(sanitizedConfigStr.toByteArray()))
-                
-                backend?.setState(tunnel, Tunnel.State.UP, config)
-                isConnected = true
-
-                withContext(Dispatchers.Main) {
-                    statusSink?.success("CONNECTED")
-                    result?.success(true)
-                    startStatsMonitoring()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    isConnected = false
-                    statusSink?.success("ERROR")
-                    result?.error("TUNNEL_ERROR", e.message ?: "Failed to start tunnel", null)
-                }
-            }
+    private fun startVpnService(config: String) {
+        sendStatus("CONNECTING")
+        val intent = Intent(this, NovaVpnService::class.java).apply {
+            action = NovaVpnService.ACTION_CONNECT
+            putExtra(NovaVpnService.EXTRA_CONFIG, config)
         }
+        ContextCompat.startForegroundService(this, intent)
+        startStatsMonitoring()
     }
 
-    private fun disconnectTunnel(result: MethodChannel.Result?) {
-        activityScope.launch(Dispatchers.IO) {
-            try {
-                statsJob?.cancel()
-                backend?.setState(tunnel, Tunnel.State.DOWN, null)
-                isConnected = false
-
-                withContext(Dispatchers.Main) {
-                    statusSink?.success("DISCONNECTED")
-                    result?.success(true)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                withContext(Dispatchers.Main) {
-                    result?.error("DISCONNECT_ERROR", e.message, null)
-                }
-            }
+    private fun stopVpnService(result: MethodChannel.Result?) {
+        stopStatsMonitoring()
+        val intent = Intent(this, NovaVpnService::class.java).apply {
+            action = NovaVpnService.ACTION_DISCONNECT
         }
+        startService(intent)
+        result?.success(true)
     }
 
     private fun startStatsMonitoring() {
         statsJob?.cancel()
         statsJob = activityScope.launch(Dispatchers.IO) {
-            while (isActive && isConnected) {
-                try {
-                    val stats = backend?.getStatistics(tunnel)
-                    if (stats != null) {
-                        val rx = stats.totalRx()
-                        val tx = stats.totalTx()
-                        withContext(Dispatchers.Main) {
-                            statsSink?.success(mapOf("rx" to rx, "tx" to tx))
-                        }
-                    }
-                } catch (_: Exception) {}
+            var lastRx = TrafficStats.getTotalRxBytes()
+            var lastTx = TrafficStats.getTotalTxBytes()
+
+            while (isActive && NovaVpnService.isRunning) {
                 delay(1000)
+                val currentRx = TrafficStats.getTotalRxBytes()
+                val currentTx = TrafficStats.getTotalTxBytes()
+
+                val rxDelta = if (lastRx > 0 && currentRx >= lastRx) currentRx - lastRx else 0L
+                val txDelta = if (lastTx > 0 && currentTx >= lastTx) currentTx - lastTx else 0L
+
+                lastRx = currentRx
+                lastTx = currentTx
+
+                withContext(Dispatchers.Main) {
+                    statsSink?.success(mapOf("rx" to rxDelta, "tx" to txDelta))
+                }
             }
         }
     }
 
-    private fun sanitizeWireGuardConfig(config: String): String {
-        val validInterfaceKeys = setOf("privatekey", "address", "dns", "mtu", "listenport")
-        val validPeerKeys = setOf("publickey", "presharedkey", "allowedips", "endpoint", "persistentkeepalive")
-
-        val sb = StringBuilder()
-        var currentSection = ""
-
-        BufferedReader(StringReader(config)).useLines { lines ->
-            for (rawLine in lines) {
-                val line = rawLine.trim()
-                if (line.startsWith("[") && line.endsWith("]")) {
-                    currentSection = line.substring(1, line.length - 1).toLowerCase()
-                    sb.append(rawLine).append("\n")
-                    continue
-                }
-
-                val equalsIdx = line.indexOf('=')
-                if (equalsIdx != -1) {
-                    val key = line.substring(0, equalsIdx).trim().toLowerCase()
-                    when (currentSection) {
-                        "interface" -> {
-                            if (validInterfaceKeys.contains(key)) {
-                                sb.append(rawLine).append("\n")
-                            }
-                        }
-                        "peer" -> {
-                            if (validPeerKeys.contains(key)) {
-                                sb.append(rawLine).append("\n")
-                            }
-                        }
-                        else -> {
-                            sb.append(rawLine).append("\n")
-                        }
-                    }
-                }
-            }
-        }
-        return sb.toString()
+    private fun stopStatsMonitoring() {
+        statsJob?.cancel()
+        statsJob = null
     }
 
     override fun onDestroy() {
