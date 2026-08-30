@@ -3,7 +3,9 @@ package com.vpn.app
 import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
+import android.os.Build
 import androidx.annotation.NonNull
+import com.vpn.app.service.NovaVpnService
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
@@ -43,16 +45,16 @@ class MainActivity : FlutterActivity() {
                         pendingResult = result
                         startActivityForResult(vpnIntent, VPN_REQUEST_CODE)
                     } else {
-                        startVpnTunnel(config)
+                        startNovaService(config)
                         result.success(true)
                     }
                 }
                 "stopVpn" -> {
-                    stopVpnTunnel()
+                    stopNovaService()
                     result.success(true)
                 }
                 "getTunnelState" -> {
-                    val state = if (isConnected) "CONNECTED" else "DISCONNECTED"
+                    val state = if (NovaVpnService.isRunning || isConnected) "CONNECTED" else "DISCONNECTED"
                     result.success(state)
                 }
                 else -> {
@@ -66,7 +68,8 @@ class MainActivity : FlutterActivity() {
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     statusSink = events
-                    statusSink?.success(if (isConnected) "CONNECTED" else "DISCONNECTED")
+                    val currentStatus = if (NovaVpnService.isRunning || isConnected) "CONNECTED" else "DISCONNECTED"
+                    statusSink?.success(currentStatus)
                 }
 
                 override fun onCancel(arguments: Any?) {
@@ -93,7 +96,7 @@ class MainActivity : FlutterActivity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == VPN_REQUEST_CODE) {
             if (resultCode == Activity.RESULT_OK && pendingVpnConfig != null) {
-                startVpnTunnel(pendingVpnConfig!!)
+                startNovaService(pendingVpnConfig!!)
                 pendingResult?.success(true)
             } else {
                 pendingResult?.error("PERMISSION_DENIED", "User denied VPN permission", null)
@@ -103,13 +106,22 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun startVpnTunnel(config: String) {
-        isConnected = true
-        statusSink?.success("CONNECTED")
+    private fun startNovaService(config: String) {
+        val intent = Intent(this, NovaVpnService::class.java).apply {
+            action = NovaVpnService.ACTION_CONNECT
+            putExtra(NovaVpnService.EXTRA_CONFIG, config)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            startForegroundService(intent)
+        } else {
+            startService(intent)
+        }
     }
 
-    private fun stopVpnTunnel() {
-        isConnected = false
-        statusSink?.success("DISCONNECTED")
+    private fun stopNovaService() {
+        val intent = Intent(this, NovaVpnService::class.java).apply {
+            action = NovaVpnService.ACTION_DISCONNECT
+        }
+        startService(intent)
     }
 }
