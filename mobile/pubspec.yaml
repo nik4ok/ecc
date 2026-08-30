@@ -1,0 +1,44 @@
+name: vpn_app
+description: "High-performance Stealth VPN Client with VLESS Reality and Hysteria 2 support"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.4.0 <4.0.0"
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  
+  # State Management & DI
+  flutter_bloc: ^8.1.6
+  bloc: ^8.1.4
+  get_it: ^7.7.0
+  injectable: ^2.4.2
+  equatable: ^2.0.5
+
+  # Security & Storage
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.2
+
+  # Networking & Connectivity
+  connectivity_plus: ^6.0.5
+  http: ^1.2.2
+
+  # UI / UX
+  cupertino_icons: ^1.0.8
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  qr_flutter: ^4.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  bloc_test: ^9.1.7
+  mocktail: ^1.0.4
+  build_runner: ^2.4.11
+
+flutter:
+  uses-material-design: true

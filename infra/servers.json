@@ -1,0 +1,63 @@
+{
+  "servers": [
+    {
+      "id": "SRV-NL-01",
+      "name": "Netherlands Primary Node 1",
+      "location": {
+        "country": "Netherlands",
+        "city": "Amsterdam",
+        "flag": "🇳🇱"
+      },
+      "specs": {
+        "cpu": "1 x 3.3 GHz CPU",
+        "ram": "1 GB RAM",
+        "disk": "15 GB NVMe",
+        "bandwidth": "1000 Mbit/sec (1 Gbps)",
+        "virtualization": "KVM"
+      },
+      "billing": {
+        "cost_rub_per_month": 1300,
+        "billing_period": "monthly",
+        "purchased_at": "2026-08-30"
+      },
+      "network": {
+        "ipv4": "92.51.46.12",
+        "ssh_port": 22,
+        "status": "active_online",
+        "last_tested": "2026-08-30"
+      },
+      "active_protocols": {
+        "amnezia_wg_2": {
+          "status": "active_verified",
+          "container": "amnezia-awg2",
+          "port": 38037,
+          "transport": "udp",
+          "server_public_key": "dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ=",
+          "obfuscation": {
+            "jc": 5,
+            "jmin": 10,
+            "jmax": 50,
+            "s1": 88,
+            "s2": 89,
+            "s3": 43,
+            "s4": 12,
+            "h1": 1,
+            "h2": 2,
+            "h3": 3,
+            "h4": 4,
+            "header_protection_key": "QIu3Z5Di5xnPXLtB0VgavFJbp/la7s4EBkFOfCSujis=",
+            "preshared_key": "8uz3Nv8CoCOp/m7X6eoA02j6n7xKWPH0MahnzrvlhU8="
+          }
+        }
+      },
+      "roles": [
+        "AmneziaWG_Inbound",
+        "HighSpeed_1Gbps_ExitNode"
+      ]
+    }
+  ],
+  "target_protocols": [
+    "AmneziaWG 2.0 (Junk Packets + Header Obfuscation)",
+    "VLESS + XTLS Reality (uTLS Chrome)"
+  ]
+}

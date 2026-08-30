@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VPN Financial Control & P&L Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: #090d16;
+            color: #f1f5f9;
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+        }
+        .glow-emerald {
+            box-shadow: 0 0 25px -5px rgba(16, 185, 129, 0.2);
+        }
+        .glow-blue {
+            box-shadow: 0 0 25px -5px rgba(56, 189, 248, 0.2);
+        }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <!-- Top Navigation / Header -->
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 glass-card p-6 rounded-2xl">
+            <div>
+                <div class="flex items-center gap-3">
+                    <span class="text-2xl">💼</span>
+                    <h1 class="text-2xl md:text-3xl font-extrabold tracking-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                        VPN Financial Mission Control
+                    </h1>
+                    <span class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">LIVE P&L</span>
+                </div>
+                <p class="text-slate-400 text-sm mt-1">Управление доходами, расходами, серверами и точкой безубыточности</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="openAddModal('expense')" class="px-4 py-2.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-sm font-semibold transition flex items-center gap-2">
+                    <span>-</span> Добавить расход
+                </button>
+                <button onclick="openAddModal('income')" class="px-4 py-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-xl text-sm font-semibold transition flex items-center gap-2">
+                    <span>+</span> Добавить доход
+                </button>
+            </div>
+        </div>
+
+        <!-- KPI Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            <!-- OPEX Card -->
+            <div class="glass-card p-5 rounded-2xl border-t-2 border-t-rose-500">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Текущий расход (OPEX)</span>
+                    <span class="p-2 rounded-lg bg-rose-500/10 text-rose-400 text-sm">🖥</span>
+                </div>
+                <div class="mt-4">
+                    <div id="totalOpex" class="text-3xl font-extrabold text-white">1 300 ₽</div>
+                    <span class="text-xs text-rose-400 font-medium">1 активная нода (Нидерланды)</span>
+                </div>
+            </div>
+
+            <!-- MRR Card -->
+            <div class="glass-card p-5 rounded-2xl border-t-2 border-t-emerald-500">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Доход в месяц (MRR)</span>
+                    <span class="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 text-sm">📈</span>
+                </div>
+                <div class="mt-4">
+                    <div id="totalMrr" class="text-3xl font-extrabold text-emerald-400">0 ₽</div>
+                    <span class="text-xs text-slate-400 font-medium">Бесплатная фаза (0 платящих)</span>
+                </div>
+            </div>
+
+            <!-- Net Profit Card -->
+            <div class="glass-card p-5 rounded-2xl border-t-2 border-t-sky-500">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Чистый P&L (Net Profit)</span>
+                    <span class="p-2 rounded-lg bg-sky-500/10 text-sky-400 text-sm">⚖️</span>
+                </div>
+                <div class="mt-4">
+                    <div id="netProfit" class="text-3xl font-extrabold text-rose-400">-1 300 ₽</div>
+                    <span class="text-xs text-slate-400 font-medium">Инвестиционная фаза</span>
+                </div>
+            </div>
+
+            <!-- Break-even Subscribers -->
+            <div class="glass-card p-5 rounded-2xl border-t-2 border-t-amber-500">
+                <div class="flex justify-between items-start">
+                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Окупаемость сервера</span>
+                    <span class="p-2 rounded-lg bg-amber-500/10 text-amber-400 text-sm">🎯</span>
+                </div>
+                <div class="mt-4">
+                    <div class="text-3xl font-extrabold text-amber-400">5 <span class="text-base font-normal text-slate-400">чел.</span></div>
+                    <span class="text-xs text-slate-400 font-medium">по тарифу 299 ₽ / месяц</span>
+                </div>
+            </div>
+
+        </div>
+
+        <!-- Main Grid: Active Servers & Break-Even Calculator -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Left Column (2/3): Servers & Transactions -->
+            <div class="lg:col-span-2 space-y-6">
+                
+                <!-- Server Assets Card -->
+                <div class="glass-card p-6 rounded-2xl space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">🌐</span>
+                            <h2 class="font-bold text-slate-200">Реестр серверов и сетевых нод</h2>
+                        </div>
+                        <span class="text-xs font-semibold px-2.5 py-1 rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">1 Сервер куплен</span>
+                    </div>
+
+                    <div class="space-y-3">
+                        <!-- Server 1 (Active) -->
+                        <div class="p-4 rounded-xl bg-slate-900/60 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                            <div class="flex items-start gap-3">
+                                <span class="text-3xl">🇳🇱</span>
+                                <div>
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="font-bold text-white text-base">Node 1 • Нидерланды</h3>
+                                        <span class="px-2 py-0.5 text-[10px] font-extrabold uppercase rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">Primary Edge</span>
+                                    </div>
+                                    <div class="text-xs text-slate-400 mt-1 flex flex-wrap gap-x-3 gap-y-1 font-mono">
+                                        <span>⚡ 1x 3.3 GHz CPU</span>
+                                        <span>🧠 1 GB RAM</span>
+                                        <span>💾 15 GB NVMe</span>
+                                        <span class="text-sky-400 font-bold">🚀 1000 Мбит/сек</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="text-right flex sm:flex-col justify-between items-center sm:items-end">
+                                <div class="text-lg font-extrabold text-white">1 300 ₽<span class="text-xs font-normal text-slate-400">/мес</span></div>
+                                <span class="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Готов к развертыванию
+                                </span>
+                            </div>
+                        </div>
+
+                        <!-- Server 2 (Planned) -->
+                        <div class="p-3.5 rounded-xl bg-slate-900/30 border border-slate-800/60 flex items-center justify-between opacity-60">
+                            <div class="flex items-center gap-3">
+                                <span class="text-2xl">🇩🇪</span>
+                                <div>
+                                    <div class="font-semibold text-sm text-slate-300">Node 2 • Германия (Франкфурт)</div>
+                                    <div class="text-xs text-slate-500 font-mono">2x CPU • 2 GB RAM • 1000 Мбит/с</div>
+                                </div>
+                            </div>
+                            <span class="text-xs text-slate-400 font-medium">В плане (Этап 4)</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Transaction History -->
+                <div class="glass-card p-6 rounded-2xl space-y-4">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="text-lg">📜</span>
+                            <h2 class="font-bold text-slate-200">Журнал операций (Расходы и Доходы)</h2>
+                        </div>
+                        <button onclick="clearTransactions()" class="text-xs text-slate-500 hover:text-slate-400 transition">Очистить кэш</button>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left text-sm">
+                            <thead>
+                                <tr class="text-slate-400 border-b border-slate-800/80 text-xs uppercase tracking-wider font-semibold">
+                                    <th class="pb-3 font-medium">Дата</th>
+                                    <th class="pb-3 font-medium">Категория</th>
+                                    <th class="pb-3 font-medium">Описание</th>
+                                    <th class="pb-3 font-medium">Тип</th>
+                                    <th class="pb-3 font-medium text-right">Сумма</th>
+                                </tr>
+                            </thead>
+                            <tbody id="txTableBody" class="divide-y divide-slate-800/50 text-slate-300">
+                                <!-- Populated dynamically -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column (1/3): Break-Even & Scenarios -->
+            <div class="space-y-6">
+                
+                <!-- Break-Even Simulator -->
+                <div class="glass-card p-6 rounded-2xl space-y-4 glow-blue">
+                    <div class="flex items-center gap-2 border-b border-slate-800 pb-3">
+                        <span class="text-lg">🧮</span>
+                        <h2 class="font-bold text-slate-200">Калькулятор окупаемости</h2>
+                    </div>
+
+                    <div class="space-y-4 text-sm">
+                        <p class="text-xs text-slate-400">Сколько платных подписчиков нужно для покрытия аренды сервера (1 300 ₽/мес):</p>
+
+                        <div class="space-y-3">
+                            <!-- Scenario 1 -->
+                            <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-bold text-white text-xs">Тариф «Standard» (299 ₽)</span>
+                                    <span class="text-emerald-400 font-bold text-xs">5 подписчиков</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-2">
+                                    <div class="bg-emerald-500 h-2 rounded-full" style="width: 20%"></div>
+                                </div>
+                                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                                    <span>Маржа: ~260 ₽ / юзер</span>
+                                    <span>Прибыль при 50 юз: +11 700 ₽</span>
+                                </div>
+                            </div>
+
+                            <!-- Scenario 2 -->
+                            <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-bold text-white text-xs">Тариф «Годовой» (199 ₽/мес)</span>
+                                    <span class="text-sky-400 font-bold text-xs">7 подписчиков</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-2">
+                                    <div class="bg-sky-500 h-2 rounded-full" style="width: 30%"></div>
+                                </div>
+                                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                                    <span>Маржа: ~170 ₽ / юзер</span>
+                                    <span>Прибыль при 50 юз: +7 200 ₽</span>
+                                </div>
+                            </div>
+
+                            <!-- Scenario 3 -->
+                            <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800">
+                                <div class="flex justify-between items-center mb-1">
+                                    <span class="font-bold text-white text-xs">Тариф «4K Turbo» (399 ₽)</span>
+                                    <span class="text-amber-400 font-bold text-xs">4 подписчика</span>
+                                </div>
+                                <div class="w-full bg-slate-800 rounded-full h-2">
+                                    <div class="bg-amber-500 h-2 rounded-full" style="width: 15%"></div>
+                                </div>
+                                <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+                                    <span>Маржа: ~350 ₽ / юзер</span>
+                                    <span>Прибыль при 50 юз: +16 200 ₽</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Excel Sync Box -->
+                <div class="glass-card p-5 rounded-2xl space-y-3">
+                    <div class="flex items-center gap-2">
+                        <span class="text-xl">📊</span>
+                        <h3 class="font-bold text-white text-sm">Таблица Excel (.xlsx)</h3>
+                    </div>
+                    <p class="text-xs text-slate-400 leading-relaxed">
+                        Все данные синхронизируются с файлом:
+                        <code class="text-[11px] bg-slate-900 px-1.5 py-0.5 rounded text-sky-300 font-mono block mt-1">finance/VPN_Financial_Model_and_Tracker.xlsx</code>
+                    </p>
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- Modal for Adding Transactions -->
+    <div id="txModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="glass-card w-full max-w-md p-6 rounded-2xl border border-slate-700 space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 id="modalTitle" class="font-bold text-lg text-white">Добавить запись</h3>
+                <button onclick="closeModal()" class="text-slate-400 hover:text-white">✕</button>
+            </div>
+            
+            <form id="txForm" onsubmit="handleSaveTx(event)" class="space-y-4 text-sm">
+                <input type="hidden" id="formType" value="expense">
+                
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Категория</label>
+                    <input type="text" id="formCategory" required placeholder="Например: Серверы, Сторы, Реклама..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white outline-none focus:border-sky-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Описание</label>
+                    <input type="text" id="formDesc" required placeholder="Краткое описание расхода или дохода..." class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white outline-none focus:border-sky-500">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold uppercase text-slate-400 mb-1">Сумма (₽)</label>
+                    <input type="number" id="formAmount" required min="1" placeholder="1300" class="w-full bg-slate-900 border border-slate-700 rounded-xl px-3.5 py-2.5 text-white outline-none focus:border-sky-500">
+                </div>
+
+                <div class="flex gap-3 pt-2">
+                    <button type="button" onclick="closeModal()" class="flex-1 py-2.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 transition">Отмена</button>
+                    <button type="submit" class="flex-1 py-2.5 rounded-xl bg-sky-500 hover:bg-sky-400 text-slate-950 font-bold transition">Сохранить</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const DEFAULT_TXS = [
+            { id: 1, date: '2026-08-30', category: 'Серверы (OPEX)', desc: 'Аренда VPS Нидерланды (1 Gbps, 15GB NVMe)', type: 'expense', amount: 1300 }
+        ];
+
+        function getStoredTxs() {
+            const raw = localStorage.getItem('vpn_financial_txs');
+            return raw ? JSON.parse(raw) : DEFAULT_TXS;
+        }
+
+        function saveTxs(txs) {
+            localStorage.setItem('vpn_financial_txs', JSON.stringify(txs));
+            render();
+        }
+
+        function openAddModal(type) {
+            document.getElementById('formType').value = type;
+            document.getElementById('modalTitle').textContent = type === 'expense' ? 'Добавить расход' : 'Добавить доход';
+            document.getElementById('formCategory').value = type === 'expense' ? 'Инфраструктура' : 'Подписки';
+            document.getElementById('txModal').classList.remove('hidden');
+            document.getElementById('txModal').classList.add('flex');
+        }
+
+        function closeModal() {
+            document.getElementById('txModal').classList.add('hidden');
+            document.getElementById('txModal').classList.remove('flex');
+            document.getElementById('txForm').reset();
+        }
+
+        function handleSaveTx(e) {
+            e.preventDefault();
+            const type = document.getElementById('formType').value;
+            const category = document.getElementById('formCategory').value;
+            const desc = document.getElementById('formDesc').value;
+            const amount = parseFloat(document.getElementById('formAmount').value) || 0;
+            const date = new Date().toISOString().split('T')[0];
+
+            const txs = getStoredTxs();
+            txs.unshift({ id: Date.now(), date, category, desc, type, amount });
+            saveTxs(txs);
+            closeModal();
+        }
+
+        function clearTransactions() {
+            if (confirm('Сбросить транзакции к исходному состоянию?')) {
+                saveTxs(DEFAULT_TXS);
+            }
+        }
+
+        function render() {
+            const txs = getStoredTxs();
+            const tbody = document.getElementById('txTableBody');
+            tbody.innerHTML = '';
+
+            let totalExp = 0;
+            let totalInc = 0;
+
+            txs.forEach(tx => {
+                if (tx.type === 'expense') totalExp += tx.amount;
+                if (tx.type === 'income') totalInc += tx.amount;
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/40 transition';
+                tr.innerHTML = `
+                    <td class="py-3 text-slate-400 font-mono text-xs">${tx.date}</td>
+                    <td class="py-3 font-semibold text-slate-200">${tx.category}</td>
+                    <td class="py-3 text-slate-400">${tx.desc}</td>
+                    <td class="py-3">
+                        <span class="px-2 py-0.5 rounded text-[11px] font-bold ${tx.type === 'expense' ? 'bg-rose-500/10 text-rose-400' : 'bg-emerald-500/10 text-emerald-400'}">
+                            ${tx.type === 'expense' ? 'РАСХОД' : 'ДОХОД'}
+                        </span>
+                    </td>
+                    <td class="py-3 text-right font-bold ${tx.type === 'expense' ? 'text-rose-400' : 'text-emerald-400'} font-mono">
+                        ${tx.type === 'expense' ? '-' : '+'}${tx.amount.toLocaleString()} ₽
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            document.getElementById('totalOpex').textContent = `${totalExp.toLocaleString()} ₽`;
+            document.getElementById('totalMrr').textContent = `${totalInc.toLocaleString()} ₽`;
+            
+            const net = totalInc - totalExp;
+            const netEl = document.getElementById('netProfit');
+            netEl.textContent = `${net > 0 ? '+' : ''}${net.toLocaleString()} ₽`;
+            netEl.className = `text-3xl font-extrabold ${net >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+        }
+
+        render();
+    </script>
+</body>
+</html>
