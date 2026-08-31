@@ -49,6 +49,9 @@ void main() {
     expect(uapi, contains('h2=2'));
     expect(uapi, contains('h3=3'));
     expect(uapi, contains('h4=4'));
+    expect(uapi, contains('random_trailers=1'));
+    expect(uapi, contains('disable_cookies=1'));
+    expect(uapi, contains('content_padding_addition=10-100'));
   });
 
   test('UAPI includes replace_peers, endpoint and keepalive', () {

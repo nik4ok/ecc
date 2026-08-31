@@ -25,6 +25,9 @@ class DefaultNodes {
       h3: 3,
       h4: 4,
       headerProtectionKey: "81A3uK4f+uME094NUUP6F+ryryeO5DrPcYB+zYWt6Xc=",
+      contentPaddingAddition: "10-100",
+      randomTrailers: true,
+      disableCookies: true,
     ),
   );
 }

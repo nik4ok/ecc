@@ -13,6 +13,9 @@ class AmneziaWgParams extends Equatable {
   final int h3;
   final int h4;
   final String? headerProtectionKey;
+  final String? contentPaddingAddition;
+  final bool randomTrailers;
+  final bool disableCookies;
 
   const AmneziaWgParams({
     required this.jc,
@@ -27,6 +30,9 @@ class AmneziaWgParams extends Equatable {
     required this.h3,
     required this.h4,
     this.headerProtectionKey,
+    this.contentPaddingAddition,
+    this.randomTrailers = false,
+    this.disableCookies = false,
   });
 
   List<String> validate() {
@@ -40,5 +46,8 @@ class AmneziaWgParams extends Equatable {
   bool get isValid => validate().isEmpty;
 
   @override
-  List<Object?> get props => [jc, jmin, jmax, s1, s2, s3, s4, h1, h2, h3, h4, headerProtectionKey];
+  List<Object?> get props => [
+        jc, jmin, jmax, s1, s2, s3, s4, h1, h2, h3, h4,
+        headerProtectionKey, contentPaddingAddition, randomTrailers, disableCookies,
+      ];
 }

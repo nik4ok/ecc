@@ -48,6 +48,15 @@ class AmneziaWgConfigGenerator {
     if (params.headerProtectionKey != null && params.headerProtectionKey!.trim().isNotEmpty) {
       buffer.writeln('HeaderProtectionKey = ${params.headerProtectionKey!.trim()}');
     }
+    if (params.contentPaddingAddition != null && params.contentPaddingAddition!.trim().isNotEmpty) {
+      buffer.writeln('ContentPaddingAddition = ${params.contentPaddingAddition!.trim()}');
+    }
+    if (params.randomTrailers) {
+      buffer.writeln('RandomTrailers = on');
+    }
+    if (params.disableCookies) {
+      buffer.writeln('DisableCookies = on');
+    }
 
     buffer
       ..writeln()

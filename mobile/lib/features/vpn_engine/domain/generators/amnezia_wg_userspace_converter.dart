@@ -21,13 +21,6 @@ class AmneziaWgUserspaceConverter {
     'H4': 'h4',
   };
 
-  static const _keyFields = <String>{
-    'PrivateKey',
-    'PublicKey',
-    'PresharedKey',
-    'HeaderProtectionKey',
-  };
-
   static String fromQuickConfig(String ini) {
     final lines = <String>[];
     var section = '';
@@ -90,6 +83,18 @@ class AmneziaWgUserspaceConverter {
       lines.add('header_protection_key=$hex');
       return;
     }
+    if (key == 'ContentPaddingAddition') {
+      lines.add('content_padding_addition=$value');
+      return;
+    }
+    if (key == 'RandomTrailers') {
+      lines.add('random_trailers=${_uapiBool(value)}');
+      return;
+    }
+    if (key == 'DisableCookies') {
+      lines.add('disable_cookies=${_uapiBool(value)}');
+      return;
+    }
     final mapped = _interfaceKeys[key];
     if (mapped != null) {
       lines.add('$mapped=$value');
@@ -128,6 +133,19 @@ class AmneziaWgUserspaceConverter {
     }
     if (key == 'PersistentKeepalive') {
       lines.add('persistent_keepalive_interval=$value');
+    }
+  }
+
+  static String _uapiBool(String value) {
+    switch (value.trim().toLowerCase()) {
+      case 'on':
+      case '1':
+      case 'true':
+      case 't':
+      case 'yes':
+        return '1';
+      default:
+        return '0';
     }
   }
 }
