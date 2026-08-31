@@ -218,8 +218,16 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
       return;
     }
 
+    if (event.status == VpnConnectionStatus.error) {
+      _cancelHandshakeTimeout();
+      emit(state.copyWith(
+        status: VpnConnectionStatus.error,
+        errorMessage: state.errorMessage ?? handshakeTimeoutMessage,
+      ));
+      return;
+    }
+
     if (event.status == VpnConnectionStatus.connected ||
-        event.status == VpnConnectionStatus.error ||
         event.status == VpnConnectionStatus.disconnected) {
       _cancelHandshakeTimeout();
     }

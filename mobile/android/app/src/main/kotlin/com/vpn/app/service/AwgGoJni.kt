@@ -3,7 +3,6 @@ package com.vpn.app.service
 import android.content.Context
 import com.getkeepsafe.relinker.ReLinker
 import org.amnezia.awg.GoBackend
-import org.amnezia.awg.config.Config
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
@@ -35,9 +34,11 @@ object AwgGoJni {
     }
 
     fun toGoSettings(ini: String): String {
-        val parsed = Config.parse(ini.byteInputStream(Charsets.UTF_8))
-        // Endpoint is already IPv4; skip DoH/okhttp resolution (excluded at Gradle).
-        return parsed.toAwgQuickString(false, false)
+        // Do not round-trip through Config.parse(): amneziawg-android 2.3.7
+        // rejects HeaderProtectionKey (AWG 3). The server requires that key;
+        // native libam-go accepts the Flutter wg-quick INI as-is.
+        val trimmed = ini.trim()
+        return if (trimmed.endsWith('\n')) trimmed else "$trimmed\n"
     }
 
     fun turnOn(ifName: String, tunFd: Int, settings: String, uapiPath: String): Int {
