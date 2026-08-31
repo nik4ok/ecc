@@ -89,7 +89,6 @@ class NovaVpnService : VpnService() {
             // After establish() DNS would fall into an empty tun0.
             AwgGoJni.load(this)
             val goSettings = AwgGoJni.toGoSettings(config)
-            val uapiPath = dataDir.absolutePath
 
             val clientIp = extractClientIp(config) ?: "10.8.1.2"
             val builder = Builder()
@@ -126,7 +125,7 @@ class NovaVpnService : VpnService() {
 
             val session = sessionSeq.incrementAndGet()
             engineExecutor.execute {
-                bringUpEngine(goSettings, uapiPath, session)
+                bringUpEngine(goSettings, session)
             }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to start VPN tunnel: ${e.javaClass.simpleName}")
@@ -134,7 +133,7 @@ class NovaVpnService : VpnService() {
         }
     }
 
-    private fun bringUpEngine(goSettings: String, uapiPath: String, session: Int) {
+    private fun bringUpEngine(goSettings: String, session: Int) {
         var detachedFd: Int? = null
         try {
             if (session != sessionSeq.get()) {
@@ -153,7 +152,7 @@ class NovaVpnService : VpnService() {
                 vpnInterface = null
             }
 
-            val handle = AwgGoJni.turnOn(TUNNEL_IFACE, fd, goSettings, uapiPath)
+            val handle = AwgGoJni.turnOn(TUNNEL_IFACE, fd, goSettings)
             if (handle < 0) {
                 Log.e(TAG, "awgTurnOn failed with handle=$handle")
                 closeDetachedFd(fd)
@@ -299,9 +298,10 @@ class NovaVpnService : VpnService() {
     }
 
     private fun extractClientIp(config: String): String? {
+        val novaAddress = Regex("""#\s*nova_address=([0-9.]+)""")
+        novaAddress.find(config)?.groupValues?.getOrNull(1)?.let { return it }
         val addressRegex = Regex("""Address\s*=\s*([0-9.]+)(?:/[0-9]+)?""")
-        val match = addressRegex.find(config)
-        return match?.groupValues?.getOrNull(1)
+        return addressRegex.find(config)?.groupValues?.getOrNull(1)
     }
 
     private fun createNotificationChannel() {

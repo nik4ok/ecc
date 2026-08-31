@@ -32,7 +32,7 @@ VpnProfile amneziaProfile() => VpnProfile(
       protocolType: VpnProtocolType.amneziaWg,
       clientPrivateKey: 'dGVzdHByaXZhdGVrZXkxMjM0NTY3ODkwMTIzNDU2Nzg=',
       clientAddress: '10.8.0.2/32',
-      publicKey: 'dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXl0ZXN0cA==',
+      publicKey: 'dGVzdHByaXZhdGVrZXkxMjM0NTY3ODkwMTIzNDU2Nzg=',
       amneziaParams: validParams(),
     );
 

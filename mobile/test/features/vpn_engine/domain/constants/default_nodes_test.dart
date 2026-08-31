@@ -18,12 +18,12 @@ void main() {
     expect(bytes.length, 32);
   });
 
-  test('server endpoint is 92.51.46.12:38037', () {
-    expect(node.serverAddress, '92.51.46.12');
-    expect(node.serverPort, 38037);
+  test('server endpoint is 89.19.217.190:39783', () {
+    expect(node.serverAddress, '89.19.217.190');
+    expect(node.serverPort, 39783);
   });
 
   test('publicKey is the server key and is unchanged', () {
-    expect(node.publicKey, 'dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ=');
+    expect(node.publicKey, 's1bBvq1mlFNu+VeAJSP3lD4PGz/SJhAM9Jw3HPNuekw=');
   });
 }

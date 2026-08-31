@@ -231,7 +231,7 @@ void main() {
     );
 
     expect(config, contains('Address = 10.8.1.2/32'));
-    expect(config, contains('Endpoint = 92.51.46.12:38037'));
+    expect(config, contains('Endpoint = 89.19.217.190:39783'));
     expect(config, contains('HeaderProtectionKey'));
     expect(config, contains('PresharedKey'));
     expect(config, contains('S3'));

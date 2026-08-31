@@ -6,18 +6,12 @@ import org.amnezia.awg.GoBackend
 import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * Thin wrapper around public JNI in org.amnezia.awg.GoBackend (amneziawg-android 2.3.7):
- *   public static native int awgTurnOn(String ifName, int tunFd, String settings, String uapiPath)
- *   public static native void awgTurnOff(int handle)
- *   public static native int awgGetSocketV4(int handle)
- *   public static native int awgGetSocketV6(int handle)
- *   public static native String awgGetConfig(int handle)
- *   public static native String awgVersion()
- *
- * Native library name: libam-go.so
+ * JNI around official AmneziaWG 3 libwg-go.so:
+ *   awgTurnOn(ifName, tunFd, uapiSettings)
+ * Settings must be userspace UAPI (header_protection_key=hex), not wg-quick INI.
  */
 object AwgGoJni {
-    private const val NATIVE_LIB = "am-go"
+    private const val NATIVE_LIB = "wg-go"
     private val loaded = AtomicBoolean(false)
 
     fun load(context: Context) {
@@ -33,16 +27,18 @@ object AwgGoJni {
         }
     }
 
-    fun toGoSettings(ini: String): String {
-        // Do not round-trip through Config.parse(): amneziawg-android 2.3.7
-        // rejects HeaderProtectionKey (AWG 3). The server requires that key;
-        // native libam-go accepts the Flutter wg-quick INI as-is.
-        val trimmed = ini.trim()
+    fun toGoSettings(payload: String): String {
+        val body = payload
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .joinToString("\n")
+        val trimmed = body.trim()
         return if (trimmed.endsWith('\n')) trimmed else "$trimmed\n"
     }
 
-    fun turnOn(ifName: String, tunFd: Int, settings: String, uapiPath: String): Int {
-        return GoBackend.awgTurnOn(ifName, tunFd, settings, uapiPath)
+    fun turnOn(ifName: String, tunFd: Int, settings: String): Int {
+        return GoBackend.awgTurnOn(ifName, tunFd, settings)
     }
 
     fun turnOff(handle: Int) {

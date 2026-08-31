@@ -1,0 +1,5 @@
+AmneziaWG Android userspace sources in this directory are Apache-2.0,
+copied from https://github.com/amnezia-vpn/amneziawg-android (tag v3.1.20260814)
+and https://github.com/amnezia-vpn/amneziawg-go/v3.
+
+They are compiled into libwg-go.so so NOVA can apply HeaderProtectionKey.

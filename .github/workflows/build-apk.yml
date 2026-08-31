@@ -31,6 +31,24 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
 
+      - name: Set up Go (AmneziaWG 3 libwg-go)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+
+      - name: Set up Android NDK
+        uses: nttld/setup-ndk@v1
+        id: setup-ndk
+        with:
+          ndk-version: r27c
+          add-to-path: false
+
+      - name: Build libwg-go.so (AWG 3)
+        working-directory: ./mobile/android/native/libwg-go
+        env:
+          ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        run: make
+
       - name: Set up Flutter SDK
         uses: subosito/flutter-action@v2
         with:

@@ -5,6 +5,7 @@ import 'vpn_state.dart';
 import '../../data/datasources/native_vpn_data_source.dart';
 import '../../domain/entities/vpn_profile.dart';
 import '../../domain/generators/amnezia_wg_config_generator.dart';
+import '../../domain/generators/amnezia_wg_userspace_converter.dart';
 import '../../domain/generators/singbox_config_generator.dart';
 import '../../domain/generators/wg_keys.dart';
 
@@ -158,15 +159,18 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
         if (clientPrivateKey == null || !WgKeys.isValid(clientPrivateKey)) {
           throw StateError(invalidClientKeyMessage);
         }
-        return AmneziaWgConfigGenerator.generateClientConfig(
+        final ini = AmneziaWgConfigGenerator.generateClientConfig(
           clientPrivateKey: clientPrivateKey,
           clientAddress: profile.clientAddress ?? "10.8.1.2/32",
-          serverPublicKey: profile.publicKey ?? "dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ=",
+          serverPublicKey: profile.publicKey ?? "s1bBvq1mlFNu+VeAJSP3lD4PGz/SJhAM9Jw3HPNuekw=",
           serverAddress: profile.serverAddress,
           serverPort: profile.serverPort,
           params: profile.amneziaParams!,
           presharedKey: profile.presharedKey,
         );
+        final address = (profile.clientAddress ?? "10.8.1.2/32").split('/').first;
+        final uapi = AmneziaWgUserspaceConverter.fromQuickConfig(ini);
+        return '# nova_address=$address\n$uapi';
 
       case VpnProtocolType.vlessReality:
         return SingBoxConfigGenerator.generateVlessRealityConfig(

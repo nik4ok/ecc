@@ -27,4 +27,21 @@ void main() {
       );
     });
   });
+
+  group('WgKeys.toHex', () {
+    test('returns null for invalid keys', () {
+      expect(WgKeys.toHex(null), isNull);
+      expect(WgKeys.toHex(''), isNull);
+      expect(WgKeys.toHex('cHJpdmF0ZWtleXRlc3Q='), isNull);
+    });
+
+    test('encodes a 32-byte key as 64 lowercase hex chars', () {
+      const b64 = 'dGVzdHByaXZhdGVrZXkxMjM0NTY3ODkwMTIzNDU2Nzg=';
+      final hex = WgKeys.toHex(b64);
+      expect(hex, isNotNull);
+      expect(hex!.length, 64);
+      expect(hex, hex.toLowerCase());
+      expect(RegExp(r'^[0-9a-f]+$').hasMatch(hex), isTrue);
+    });
+  });
 }

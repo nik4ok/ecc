@@ -25,6 +25,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = 1
         versionName = "1.0.0"
+        ndk {
+            abiFilters 'arm64-v8a', 'armeabi-v7a'
+        }
     }
 
     packaging {
@@ -40,10 +43,7 @@ android {
     }
 }
 
-// amneziawg-android 2.3.7 (via Gradle metadata / hevtunnel / okhttp 5.3)
-// otherwise resolves androidx.core 1.17 (compileSdk 36 / AGP 8.9+) and
-// kotlin-stdlib 2.2.21 (metadata 2.2.0, unreadable by Kotlin 1.9).
-// Flutter 3.24 still compiles against API 34 / AGP 8.1 / Kotlin 1.9.
+// Force AndroidX / Kotlin versions that Flutter 3.24 / AGP 8.1 / API 34 can compile.
 configurations.all {
     resolutionStrategy {
         force 'androidx.core:core:1.13.1'
@@ -59,12 +59,8 @@ configurations.all {
 
 dependencies {
     implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.annotation:annotation:1.8.2'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
-    implementation('com.zaneschepke:amneziawg-android:2.3.7') {
-        exclude group: 'com.squareup.okhttp3', module: 'okhttp'
-        exclude group: 'com.squareup.okhttp3', module: 'okhttp-dnsoverhttps'
-        exclude group: 'com.zaneschepke', module: 'hevtunnel'
-    }
     implementation 'com.getkeepsafe.relinker:relinker:1.4.5'
 }
 

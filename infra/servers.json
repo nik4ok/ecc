@@ -1,8 +1,8 @@
 {
   "servers": [
     {
-      "id": "SRV-NL-01",
-      "name": "Netherlands Primary Node 1",
+      "id": "SRV-NL-02",
+      "name": "Netherlands Primary Node 2",
       "location": {
         "country": "Netherlands",
         "city": "Amsterdam",
@@ -18,41 +18,70 @@
       "billing": {
         "cost_rub_per_month": 1300,
         "billing_period": "monthly",
-        "purchased_at": "2026-08-30"
+        "purchased_at": "2026-08-31"
       },
       "network": {
-        "ipv4": "92.51.46.12",
+        "ipv4": "89.19.217.190",
         "ssh_port": 22,
         "status": "active_online",
-        "last_tested": "2026-08-30"
+        "last_tested": "2026-08-31"
       },
       "active_protocols": {
         "amnezia_wg_2": {
-          "status": "active_verified",
+          "status": "active_verified_amnezia_app",
           "container": "amnezia-awg2",
-          "port": 38037,
+          "port": 39783,
           "transport": "udp",
-          "server_public_key": "dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ=",
+          "server_public_key": "s1bBvq1mlFNu+VeAJSP3lD4PGz/SJhAM9Jw3HPNuekw=",
+          "nova_client_public_key": "lzMFxwiPIiewKz4KFxKQG6+f2BkUIZvu8woO3/+bT3w=",
+          "nova_client_address": "10.8.1.2/32",
           "obfuscation": {
             "jc": 5,
             "jmin": 10,
             "jmax": 50,
-            "s1": 88,
-            "s2": 89,
-            "s3": 43,
+            "s1": 45,
+            "s2": 81,
+            "s3": 60,
             "s4": 12,
             "h1": 1,
             "h2": 2,
             "h3": 3,
             "h4": 4,
-            "header_protection_key": "QIu3Z5Di5xnPXLtB0VgavFJbp/la7s4EBkFOfCSujis=",
-            "preshared_key": "8uz3Nv8CoCOp/m7X6eoA02j6n7xKWPH0MahnzrvlhU8="
+            "header_protection_key": "81A3uK4f+uME094NUUP6F+ryryeO5DrPcYB+zYWt6Xc=",
+            "preshared_key": "zFJ/UgUJxzITCM1klFzBjP7JvkSbDiSGHYHvWF5tSA0="
           }
         }
       },
       "roles": [
         "AmneziaWG_Inbound",
         "HighSpeed_1Gbps_ExitNode"
+      ]
+    },
+    {
+      "id": "SRV-NL-01",
+      "name": "Netherlands Primary Node 1 (ISP-blocked)",
+      "location": {
+        "country": "Netherlands",
+        "city": "Amsterdam",
+        "flag": "🇳🇱"
+      },
+      "network": {
+        "ipv4": "92.51.46.12",
+        "ssh_port": 22,
+        "status": "blocked_by_isp_from_ru",
+        "last_tested": "2026-08-31"
+      },
+      "active_protocols": {
+        "amnezia_wg_2": {
+          "status": "unreachable_from_ru",
+          "container": "amnezia-awg2",
+          "port": 38037,
+          "transport": "udp",
+          "server_public_key": "dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ="
+        }
+      },
+      "roles": [
+        "Deprecated"
       ]
     }
   ],

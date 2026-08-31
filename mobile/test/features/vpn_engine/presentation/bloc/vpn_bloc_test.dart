@@ -227,7 +227,7 @@ void main() {
 
   group('ToggleVpnEvent — DefaultNodes.netherlandsAmneziaWg', () {
     blocTest<VpnBloc, VpnState>(
-      'startTunnel INI uses client 10.8.1.2/32 and not the stub private key',
+      'startTunnel UAPI applies HeaderProtectionKey and client 10.8.1.2',
       build: () {
         stubDataSource(mockDataSource);
         return VpnBloc(dataSource: mockDataSource);
@@ -237,9 +237,12 @@ void main() {
       verify: (_) {
         final captured = verify(() => mockDataSource.startTunnel(captureAny())).captured;
         expect(captured, isNotEmpty);
-        final ini = captured.single as String;
-        expect(ini, contains('Address = 10.8.1.2/32'));
-        expect(ini, isNot(contains('cHJpdmF0ZWtleXRlc3Q=')));
+        final payload = captured.single as String;
+        expect(payload, contains('# nova_address=10.8.1.2'));
+        expect(payload, contains('header_protection_key='));
+        expect(payload, contains('private_key='));
+        expect(payload, isNot(contains('cHJpdmF0ZWtleXRlc3Q=')));
+        expect(payload, isNot(contains('HeaderProtectionKey')));
       },
     );
   });

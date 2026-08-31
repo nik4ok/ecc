@@ -16,4 +16,17 @@ class WgKeys {
       return false;
     }
   }
+
+  /// WireGuard UAPI form: 64 lowercase hex chars, or null if [key] is invalid.
+  static String? toHex(String? key) {
+    if (!isValid(key)) {
+      return null;
+    }
+    final bytes = base64Decode(key!.trim());
+    final buffer = StringBuffer();
+    for (final byte in bytes) {
+      buffer.write(byte.toRadixString(16).padLeft(2, '0'));
+    }
+    return buffer.toString();
+  }
 }
