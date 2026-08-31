@@ -41,6 +41,21 @@ class AccessTicket extends Equatable {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'user_id': userId,
+      'display_name': displayName,
+      'email': email,
+      'client_address': clientAddress,
+      'client_public_key': clientPublicKey,
+      'endpoint_host': endpointHost,
+      'endpoint_port': endpointPort,
+      'server_public_key': serverPublicKey,
+      'preshared_key': presharedKey,
+      'amnezia': amnezia,
+    };
+  }
+
   @override
   List<Object?> get props => [
         userId,

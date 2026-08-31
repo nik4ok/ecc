@@ -8,6 +8,7 @@ import '../../domain/generators/amnezia_wg_config_generator.dart';
 import '../../domain/generators/amnezia_wg_userspace_converter.dart';
 import '../../domain/generators/singbox_config_generator.dart';
 import '../../domain/generators/wg_keys.dart';
+import '../../../account/data/device_enrollment.dart';
 
 class _HandshakeTimeoutEvent extends VpnEvent {
   const _HandshakeTimeoutEvent();
@@ -18,6 +19,7 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
   static const String invalidClientKeyMessage = 'Не задан корректный ключ клиента';
 
   final NativeVpnDataSource _dataSource;
+  final Enrollment? _enrollment;
   final Duration _handshakeTimeoutDuration;
   StreamSubscription<VpnConnectionStatus>? _statusSub;
   StreamSubscription<Map<String, int>>? _statsSub;
@@ -25,8 +27,10 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
 
   VpnBloc({
     required NativeVpnDataSource dataSource,
+    Enrollment? enrollment,
     Duration handshakeTimeout = const Duration(seconds: 20),
   })  : _dataSource = dataSource,
+        _enrollment = enrollment,
         _handshakeTimeoutDuration = handshakeTimeout,
         super(const VpnState()) {
     on<InitializeVpnEvent>(_onInitialize);
@@ -82,6 +86,12 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
   }
 
   Future<void> _onInitialize(InitializeVpnEvent event, Emitter<VpnState> emit) async {
+    final enrollment = _enrollment;
+    if (enrollment != null) {
+      emit(state.copyWith(obtainingPass: true));
+      final profile = await enrollment.ensureProfile();
+      emit(state.copyWith(currentProfile: profile, obtainingPass: false));
+    }
     final currentStatus = await _dataSource.getTunnelState();
     if (currentStatus != VpnConnectionStatus.disconnected) {
       emit(state.copyWith(status: currentStatus));

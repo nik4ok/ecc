@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:vpn_app/features/vpn_engine/data/datasources/native_vpn_data_source.dart';
 import 'package:vpn_app/features/vpn_engine/domain/constants/default_nodes.dart';
 import 'package:vpn_app/features/vpn_engine/domain/entities/vpn_profile.dart';
+import 'package:vpn_app/features/account/data/device_enrollment.dart';
 import 'package:vpn_app/features/vpn_engine/presentation/bloc/vpn_bloc.dart';
 import 'package:vpn_app/features/vpn_engine/presentation/bloc/vpn_event.dart';
 import 'package:vpn_app/features/vpn_engine/presentation/bloc/vpn_state.dart';
@@ -620,4 +621,44 @@ void main() {
     final bloc = buildBloc();
     await expectLater(bloc.close(), completes);
   });
+
+  group('InitializeVpnEvent — enrollment', () {
+    blocTest<VpnBloc, VpnState>(
+      'applies the cashier profile and does not keep the hardcoded test room',
+      build: () {
+        when(() => mockDataSource.getTunnelState())
+            .thenAnswer((_) async => VpnConnectionStatus.disconnected);
+        return VpnBloc(
+          dataSource: mockDataSource,
+          enrollment: _FixedEnrollment(
+            VpnProfile(
+              id: 'enrolled',
+              name: 'Нидерланды (Амстердам)',
+              serverAddress: '89.19.217.190',
+              serverPort: 39783,
+              protocolType: VpnProtocolType.amneziaWg,
+              clientAddress: '10.8.1.3/32',
+              clientPrivateKey: 'dGVzdHByaXZhdGVrZXkxMjM0NTY3ODkwMTIzNDU2Nzg=',
+            ),
+          ),
+        );
+      },
+      act: (bloc) => bloc.add(const InitializeVpnEvent()),
+      expect: () => [
+        isA<VpnState>().having((s) => s.obtainingPass, 'obtainingPass', isTrue),
+        isA<VpnState>()
+            .having((s) => s.obtainingPass, 'obtainingPass', isFalse)
+            .having((s) => s.currentProfile.clientAddress, 'room', '10.8.1.3/32'),
+      ],
+    );
+  });
 }
+
+class _FixedEnrollment implements Enrollment {
+  _FixedEnrollment(this.profile);
+  final VpnProfile profile;
+
+  @override
+  Future<VpnProfile> ensureProfile() async => profile;
+}
+

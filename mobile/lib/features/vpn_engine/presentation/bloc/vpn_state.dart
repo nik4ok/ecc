@@ -9,6 +9,7 @@ class VpnState extends Equatable {
   final int rxBytes;
   final int txBytes;
   final String? errorMessage;
+  final bool obtainingPass;
 
   const VpnState({
     this.status = VpnConnectionStatus.disconnected,
@@ -17,6 +18,7 @@ class VpnState extends Equatable {
     this.rxBytes = 0,
     this.txBytes = 0,
     this.errorMessage,
+    this.obtainingPass = false,
   });
 
   bool get isConnected => status == VpnConnectionStatus.connected;
@@ -30,6 +32,7 @@ class VpnState extends Equatable {
     int? rxBytes,
     int? txBytes,
     String? errorMessage,
+    bool? obtainingPass,
   }) {
     return VpnState(
       status: status ?? this.status,
@@ -38,6 +41,7 @@ class VpnState extends Equatable {
       rxBytes: rxBytes ?? this.rxBytes,
       txBytes: txBytes ?? this.txBytes,
       errorMessage: errorMessage,
+      obtainingPass: obtainingPass ?? this.obtainingPass,
     );
   }
 
@@ -49,5 +53,6 @@ class VpnState extends Equatable {
         rxBytes,
         txBytes,
         errorMessage,
+        obtainingPass,
       ];
 }

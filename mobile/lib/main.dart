@@ -1,9 +1,14 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'features/account/data/cashier_config.dart';
+import 'features/account/data/device_enrollment.dart';
+import 'features/account/data/registration_api.dart';
+import 'features/account/data/secure_enrollment_vault.dart';
 import 'features/vpn_engine/domain/entities/vpn_profile.dart';
 import 'features/vpn_engine/data/datasources/native_vpn_data_source.dart';
 import 'features/vpn_engine/data/datasources/web_mock_vpn_data_source.dart';
+import 'features/vpn_engine/domain/generators/wg_keys.dart';
 import 'features/vpn_engine/presentation/bloc/vpn_bloc.dart';
 import 'features/vpn_engine/presentation/bloc/vpn_event.dart';
 import 'features/vpn_engine/presentation/bloc/vpn_state.dart';
@@ -23,7 +28,14 @@ class NovaApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => VpnBloc(dataSource: vpnDataSource)..add(const InitializeVpnEvent()),
+      create: (_) => VpnBloc(
+        dataSource: vpnDataSource,
+        enrollment: DeviceEnrollment(
+          api: RegistrationApi(baseUrl: CashierConfig.baseUrl),
+          vault: SecureEnrollmentVault(),
+          generateKeys: WgKeys.generateKeyPair,
+        ),
+      )..add(const InitializeVpnEvent()),
       child: MaterialApp(
         title: 'Nova',
         debugShowCheckedModeBanner: false,
@@ -203,6 +215,14 @@ class _VpnHomeScreenState extends State<VpnHomeScreen> with SingleTickerProvider
                               ),
                             ],
                           ),
+
+                          if (state.obtainingPass) ...[
+                            const SizedBox(height: 16),
+                            const Text(
+                              'Получаем пропуск у кассы…',
+                              style: TextStyle(fontSize: 13, color: Color(0xFF38BDF8)),
+                            ),
+                          ],
 
                           if (state.errorMessage != null) ...[
                             const SizedBox(height: 16),
@@ -395,7 +415,12 @@ class _VpnHomeScreenState extends State<VpnHomeScreen> with SingleTickerProvider
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Амстердам • Европа • 1 Gbps',
+                                        [
+                                          if (state.currentProfile.clientAddress != null)
+                                            state.currentProfile.clientAddress!,
+                                          'Амстердам',
+                                          'Европа',
+                                        ].join(' • '),
                                         style: TextStyle(
                                           fontSize: 11,
                                           color: Colors.grey.shade400,

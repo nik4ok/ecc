@@ -1,0 +1,16 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:vpn_app/features/vpn_engine/domain/generators/x25519.dart';
+
+void main() {
+  test('RFC 7748 Alice', () {
+    final alice = [
+      0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d, 0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2, 0x66, 0x45,
+      0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5, 0x1d, 0xb9, 0x2c, 0x2a,
+    ];
+    final got = X25519.publicFromPrivate(alice);
+    expect(
+      got.map((b) => b.toRadixString(16).padLeft(2, '0')).join(),
+      '8520f0098930a754748b7ddcb43ef75a0dbf3a0d26381af4eba4a98eaa9b4e6a',
+    );
+  });
+}

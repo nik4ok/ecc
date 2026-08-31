@@ -1,6 +1,17 @@
 import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
+
+import 'x25519.dart';
 
 /// WireGuard/X25519 key helpers. Never log private keys.
+class WgKeyPair {
+  final String privateKey;
+  final String publicKey;
+
+  const WgKeyPair({required this.privateKey, required this.publicKey});
+}
+
 class WgKeys {
   const WgKeys._();
 
@@ -28,5 +39,28 @@ class WgKeys {
       buffer.write(byte.toRadixString(16).padLeft(2, '0'));
     }
     return buffer.toString();
+  }
+
+  static Future<WgKeyPair> generateKeyPair() async {
+    final random = Random.secure();
+    final privateBytes = Uint8List.fromList(
+      List<int>.generate(32, (_) => random.nextInt(256)),
+    );
+    privateBytes[0] &= 248;
+    privateBytes[31] &= 127;
+    privateBytes[31] |= 64;
+    final publicBytes = X25519.publicFromPrivate(privateBytes);
+    return WgKeyPair(
+      privateKey: base64Encode(privateBytes),
+      publicKey: base64Encode(publicBytes),
+    );
+  }
+
+  static Future<String> publicKeyFromPrivate(String privateKey) async {
+    if (!isValid(privateKey)) {
+      throw ArgumentError('private key must be 32-byte Base64');
+    }
+    final publicBytes = X25519.publicFromPrivate(base64Decode(privateKey.trim()));
+    return base64Encode(publicBytes);
   }
 }
