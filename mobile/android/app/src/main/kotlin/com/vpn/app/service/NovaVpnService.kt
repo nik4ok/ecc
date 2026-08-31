@@ -10,7 +10,6 @@ import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
-import android.system.Os
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.vpn.app.MainActivity
@@ -203,7 +202,7 @@ class NovaVpnService : VpnService() {
 
     private fun closeDetachedFd(fd: Int) {
         try {
-            Os.close(fd)
+            ParcelFileDescriptor.adoptFd(fd).close()
         } catch (e: Exception) {
             Log.w(TAG, "Closing detached TUN fd failed: ${e.javaClass.simpleName}")
         }
