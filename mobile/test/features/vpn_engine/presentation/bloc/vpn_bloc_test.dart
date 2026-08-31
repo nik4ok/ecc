@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:vpn_app/features/vpn_engine/data/datasources/native_vpn_data_source.dart';
 import 'package:vpn_app/features/vpn_engine/domain/constants/default_nodes.dart';
+import 'package:vpn_app/features/vpn_engine/domain/constants/ru_bypass_rules.dart';
 import 'package:vpn_app/features/vpn_engine/domain/entities/vpn_profile.dart';
 import 'package:vpn_app/features/account/data/device_enrollment.dart';
 import 'package:vpn_app/features/vpn_engine/presentation/bloc/vpn_bloc.dart';
@@ -444,6 +445,115 @@ void main() {
       expect: () => [
         isA<VpnState>().having((s) => s.splitTunnelingEnabled, 'splitTunnelingEnabled', isTrue),
       ],
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'does not restart the tunnel when disconnected',
+      build: buildBloc,
+      act: (bloc) => bloc.add(const ToggleSplitTunnelingEvent(false)),
+      verify: (_) => verifyNever(() => mockDataSource.startTunnel(any())),
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'rebuilds the tunnel without bypass packages when turned off while connected',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(
+        currentProfile: amneziaProfile(),
+        status: VpnConnectionStatus.connected,
+      ),
+      act: (bloc) => bloc.add(const ToggleSplitTunnelingEvent(false)),
+      verify: (_) {
+        final captured =
+            verify(() => mockDataSource.startTunnel(captureAny())).captured;
+        expect(captured, hasLength(1));
+        expect(captured.single as String, isNot(contains('nova_bypass_packages')));
+      },
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'rebuilds the tunnel with bypass packages when turned on while connected',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(
+        currentProfile: amneziaProfile(),
+        status: VpnConnectionStatus.connected,
+        splitTunnelingEnabled: false,
+      ),
+      act: (bloc) => bloc.add(const ToggleSplitTunnelingEvent(true)),
+      verify: (_) {
+        final captured =
+            verify(() => mockDataSource.startTunnel(captureAny())).captured;
+        expect(captured, hasLength(1));
+        expect(captured.single as String, contains('# nova_bypass_packages='));
+        expect(captured.single as String, contains('ru.gosuslugi.mobile'));
+      },
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'does not restart the tunnel while the first connect is still in progress',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(
+        currentProfile: amneziaProfile(),
+        status: VpnConnectionStatus.connecting,
+      ),
+      act: (bloc) => bloc.add(const ToggleSplitTunnelingEvent(false)),
+      expect: () => [
+        isA<VpnState>()
+            .having((s) => s.splitTunnelingEnabled, 'splitTunnelingEnabled', isFalse)
+            .having((s) => s.status, 'status', VpnConnectionStatus.connecting),
+      ],
+      verify: (_) => verifyNever(() => mockDataSource.startTunnel(any())),
+    );
+  });
+
+  group('ToggleVpnEvent — RU split tunnel packages', () {
+    blocTest<VpnBloc, VpnState>(
+      'startTunnel carries Госуслуги/Ozon/WB bypass packages when split is on',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
+      act: (bloc) => bloc.add(const ToggleVpnEvent()),
+      verify: (_) {
+        final captured =
+            verify(() => mockDataSource.startTunnel(captureAny())).captured;
+        final payload = captured.single as String;
+        expect(payload, contains('# nova_bypass_packages='));
+        expect(payload, contains('ru.gosuslugi.mobile'));
+        expect(payload, contains('ru.ozon.app.android'));
+        expect(payload, contains('com.wildberries.ru'));
+        expect(
+          RuBypassRules.packagesFromConfig(payload).toSet(),
+          RuBypassRules.androidPackages,
+        );
+      },
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'startTunnel omits bypass packages when split is off',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(
+        currentProfile: amneziaProfile(),
+        splitTunnelingEnabled: false,
+      ),
+      act: (bloc) => bloc.add(const ToggleVpnEvent()),
+      verify: (_) {
+        final captured =
+            verify(() => mockDataSource.startTunnel(captureAny())).captured;
+        expect(captured.single as String, isNot(contains('nova_bypass_packages')));
+      },
     );
   });
 

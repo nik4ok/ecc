@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.VpnService
 import android.os.Build
@@ -103,6 +104,8 @@ class NovaVpnService : VpnService() {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                 builder.setMetered(false)
             }
+
+            applyBypassPackages(builder, config)
 
             val configureIntent = Intent(this, MainActivity::class.java)
             val pendingIntent = PendingIntent.getActivity(
@@ -295,6 +298,35 @@ class NovaVpnService : VpnService() {
         }
         stopForeground(STOP_FOREGROUND_REMOVE)
         stopSelf()
+    }
+
+    private fun applyBypassPackages(builder: Builder, config: String) {
+        val packages = extractBypassPackages(config)
+        if (packages.isEmpty()) {
+            return
+        }
+        var applied = 0
+        for (pkg in packages) {
+            if (pkg == packageName) {
+                continue
+            }
+            try {
+                builder.addDisallowedApplication(pkg)
+                applied += 1
+            } catch (e: PackageManager.NameNotFoundException) {
+                Log.d(TAG, "bypass skip, not installed: $pkg")
+            }
+        }
+        Log.i(TAG, "split-tunnel bypass apps applied=$applied of ${packages.size}")
+    }
+
+    private fun extractBypassPackages(config: String): List<String> {
+        val match = Regex("""#\s*nova_bypass_packages=([^\n]+)""").find(config)
+            ?: return emptyList()
+        return match.groupValues[1]
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
     }
 
     private fun extractClientIp(config: String): String? {

@@ -10,6 +10,62 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Android 11+ visibility so VpnService can exclude installed RU apps. -->
+    <queries>
+        <package android:name="ru.gosuslugi.mobile" />
+        <package android:name="ru.fns.lkfl" />
+        <package android:name="ru.mos.droid" />
+        <package android:name="ru.cbr.mobile" />
+        <package android:name="ru.pochta.android" />
+        <package android:name="ru.sberbankmobile" />
+        <package android:name="com.idamob.tinkoff.android" />
+        <package android:name="ru.tinkoff.investing" />
+        <package android:name="ru.vtb24.mobilebanking.android" />
+        <package android:name="ru.alfabank.mobile.android" />
+        <package android:name="ru.gazprombank.android.mobilebank.app" />
+        <package android:name="org.raiffeisen.android" />
+        <package android:name="ru.openbank.digital" />
+        <package android:name="ru.rshb.dbo.android.individual" />
+        <package android:name="ru.sovcomcard.halva.v1" />
+        <package android:name="ru.letobank.Prometheus" />
+        <package android:name="ru.mkb.mobile" />
+        <package android:name="ru.otpbank.mobile" />
+        <package android:name="ru.psbank" />
+        <package android:name="ru.mts.money" />
+        <package android:name="ru.nspk.mirpay" />
+        <package android:name="ru.ozon.app.android" />
+        <package android:name="com.wildberries.ru" />
+        <package android:name="ru.yandex.market" />
+        <package android:name="ru.beru.android" />
+        <package android:name="com.avito.android" />
+        <package android:name="ru.sbermarket" />
+        <package android:name="ru.dns.shop" />
+        <package android:name="ru.mvideo.app" />
+        <package android:name="ru.citilink" />
+        <package android:name="ru.detmir.app" />
+        <package android:name="ru.magnit.mobile" />
+        <package android:name="ru.pyaterochka.app" />
+        <package android:name="ru.x5.perekrestok" />
+        <package android:name="ru.yandex.yandexmaps" />
+        <package android:name="ru.yandex.yandexnavi" />
+        <package android:name="ru.yandex.taxi" />
+        <package android:name="ru.yandex.music" />
+        <package android:name="ru.yandex.disk" />
+        <package android:name="ru.yandex.mail" />
+        <package android:name="ru.foodfox" />
+        <package android:name="com.vkontakte.android" />
+        <package android:name="ru.ok.android" />
+        <package android:name="ru.max" />
+        <package android:name="ru.dublgis.dgismobile" />
+        <package android:name="ru.cian.main" />
+        <package android:name="ru.hh.android" />
+        <package android:name="ru.rostel" />
+        <package android:name="ru.mts.mtstv" />
+        <package android:name="ru.beeline.services" />
+        <package android:name="ru.megafon.mlk" />
+        <package android:name="ru.tele2.tele2app" />
+    </queries>
+
     <application
         android:label="NOVA"
         android:name="${applicationName}"

@@ -4,6 +4,7 @@ import 'vpn_event.dart';
 import 'vpn_state.dart';
 import '../../data/datasources/native_vpn_data_source.dart';
 import '../../domain/entities/vpn_profile.dart';
+import '../../domain/constants/ru_bypass_rules.dart';
 import '../../domain/generators/amnezia_wg_config_generator.dart';
 import '../../domain/generators/amnezia_wg_userspace_converter.dart';
 import '../../domain/generators/singbox_config_generator.dart';
@@ -180,7 +181,10 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
         );
         final address = (profile.clientAddress ?? "10.8.1.2/32").split('/').first;
         final uapi = AmneziaWgUserspaceConverter.fromQuickConfig(ini);
-        return '# nova_address=$address\n$uapi';
+        return RuBypassRules.prependToConfig(
+          '# nova_address=$address\n$uapi',
+          enabled: state.splitTunnelingEnabled,
+        );
 
       case VpnProtocolType.vlessReality:
         return SingBoxConfigGenerator.generateVlessRealityConfig(
@@ -209,8 +213,44 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
     emit(state.copyWith(currentProfile: event.profile));
   }
 
-  void _onToggleSplitTunneling(ToggleSplitTunnelingEvent event, Emitter<VpnState> emit) {
-    emit(state.copyWith(splitTunnelingEnabled: event.enabled));
+  Future<void> _onToggleSplitTunneling(
+    ToggleSplitTunnelingEvent event,
+    Emitter<VpnState> emit,
+  ) async {
+    if (state.splitTunnelingEnabled == event.enabled) {
+      return;
+    }
+
+    final shouldRebuild = state.isConnected;
+    if (!shouldRebuild) {
+      emit(state.copyWith(splitTunnelingEnabled: event.enabled));
+      return;
+    }
+
+    emit(state.copyWith(
+      splitTunnelingEnabled: event.enabled,
+      status: VpnConnectionStatus.connecting,
+      errorMessage: null,
+    ));
+    _armHandshakeTimeout();
+
+    try {
+      final config = _generateConfig(state.currentProfile);
+      final success = await _dataSource.startTunnel(config);
+      if (!success && state.isConnecting) {
+        _cancelHandshakeTimeout();
+        emit(state.copyWith(
+          status: VpnConnectionStatus.error,
+          errorMessage: 'Не удалось обновить маршруты VPN',
+        ));
+      }
+    } catch (e) {
+      _cancelHandshakeTimeout();
+      emit(state.copyWith(
+        status: VpnConnectionStatus.error,
+        errorMessage: 'Ошибка конфигурации: $e',
+      ));
+    }
   }
 
   void _onStatusUpdated(VpnStatusUpdatedEvent event, Emitter<VpnState> emit) {

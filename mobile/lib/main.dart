@@ -372,7 +372,7 @@ class _VpnHomeScreenState extends State<VpnHomeScreen> with SingleTickerProvider
                                         style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.white),
                                       ),
                                       Text(
-                                        'Банки и Госуслуги — без сбоев',
+                                        'Госуслуги, налоги, Ozon, WB — напрямую',
                                         style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
                                       ),
                                     ],
@@ -381,9 +381,13 @@ class _VpnHomeScreenState extends State<VpnHomeScreen> with SingleTickerProvider
                                 Switch(
                                   value: state.splitTunnelingEnabled,
                                   activeColor: const Color(0xFF10B981),
-                                  onChanged: (val) {
-                                    context.read<VpnBloc>().add(ToggleSplitTunnelingEvent(val));
-                                  },
+                                  onChanged: (state.isConnecting || state.isDisconnecting)
+                                      ? null
+                                      : (val) {
+                                          context.read<VpnBloc>().add(
+                                            ToggleSplitTunnelingEvent(val),
+                                          );
+                                        },
                                 ),
                               ],
                             ),
