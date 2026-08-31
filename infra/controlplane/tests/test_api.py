@@ -95,6 +95,21 @@ class ApiTest(unittest.TestCase):
         self.assertIn("Добавить устройство", html)
         self.assertNotIn("Касса клуба", html)
         self.assertIn("/api/v1/register", html)
+        self.assertIn("Подключений", html)
+        self.assertIn("Первое", html)
+        self.assertIn("Всего", html)
+
+    def test_overview_users_include_usage_fields(self) -> None:
+        body = self._json("GET", "/api/v1/overview")
+        user = body["data"]["users"][0]
+        self.assertIn("connect_count", user)
+        self.assertIn("first_connected_at", user)
+        self.assertIn("total_bytes", user)
+        self.assertIn("total_transfer", user)
+        self.assertIn("total_traffic", body["data"]["kpis"])
+        self.assertNotIn("session_open", user)
+        self.assertNotIn("last_rx_bytes", user)
+        self.assertNotIn("last_tx_bytes", user)
 
 
 if __name__ == "__main__":

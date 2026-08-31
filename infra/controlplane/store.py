@@ -8,6 +8,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
+from awg_status import handshake_is_fresh
+from usage import UsageSnapshot, apply_observation, parse_transfer
+
 
 class DuplicatePublicKeyError(ValueError):
     pass
@@ -58,6 +61,26 @@ class UserStore:
             )
             """
         )
+        self._conn.commit()
+        self._migrate_usage_columns()
+
+    def _migrate_usage_columns(self) -> None:
+        existing = {
+            row["name"]
+            for row in self._conn.execute("PRAGMA table_info(users)").fetchall()
+        }
+        additions = (
+            ("connect_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("first_connected_at", "TEXT"),
+            ("total_rx_bytes", "INTEGER NOT NULL DEFAULT 0"),
+            ("total_tx_bytes", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_rx_bytes", "INTEGER NOT NULL DEFAULT 0"),
+            ("last_tx_bytes", "INTEGER NOT NULL DEFAULT 0"),
+            ("session_open", "INTEGER NOT NULL DEFAULT 0"),
+        )
+        for name, spec in additions:
+            if name not in existing:
+                self._conn.execute(f"ALTER TABLE users ADD COLUMN {name} {spec}")
         self._conn.commit()
 
     def seed_reserved(self, rows: list[dict[str, str]]) -> None:
@@ -141,14 +164,76 @@ class UserStore:
         row = self._conn.execute("SELECT * FROM users WHERE id = ?", (user_id,)).fetchone()
         if row is None:
             raise UserNotFoundError(user_id)
-        return dict(row)
+        return _row_to_user(row)
 
     def list_users(self) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT * FROM users ORDER BY created_at ASC"
             ).fetchall()
-            return [dict(row) for row in rows]
+            return [_row_to_user(row) for row in rows]
+
+    def apply_tunnel_peers(
+        self,
+        peers: list[dict[str, Any]],
+        now: str | None = None,
+    ) -> None:
+        stamp = now or _now()
+        by_key = {peer.get("public_key"): peer for peer in peers}
+        with self._lock:
+            rows = self._conn.execute("SELECT * FROM users").fetchall()
+            for row in rows:
+                user = _row_to_user(row)
+                peer = by_key.get(user["public_key"])
+                rx_bytes: int | None = None
+                tx_bytes: int | None = None
+                online = False
+                if peer:
+                    online = (
+                        handshake_is_fresh(peer.get("latest_handshake"))
+                        and user.get("status") == "active"
+                    )
+                    if peer.get("transfer"):
+                        rx_bytes, tx_bytes = parse_transfer(str(peer.get("transfer")))
+                nxt = apply_observation(
+                    UsageSnapshot(
+                        connect_count=user["connect_count"],
+                        first_connected_at=user["first_connected_at"],
+                        total_rx_bytes=user["total_rx_bytes"],
+                        total_tx_bytes=user["total_tx_bytes"],
+                        last_rx_bytes=user["last_rx_bytes"],
+                        last_tx_bytes=user["last_tx_bytes"],
+                        session_open=user["session_open"],
+                    ),
+                    online=online,
+                    rx_bytes=rx_bytes,
+                    tx_bytes=tx_bytes,
+                    now=stamp,
+                )
+                self._conn.execute(
+                    """
+                    UPDATE users SET
+                        connect_count = ?,
+                        first_connected_at = ?,
+                        total_rx_bytes = ?,
+                        total_tx_bytes = ?,
+                        last_rx_bytes = ?,
+                        last_tx_bytes = ?,
+                        session_open = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        nxt.connect_count,
+                        nxt.first_connected_at,
+                        nxt.total_rx_bytes,
+                        nxt.total_tx_bytes,
+                        nxt.last_rx_bytes,
+                        nxt.last_tx_bytes,
+                        1 if nxt.session_open else 0,
+                        user["id"],
+                    ),
+                )
+            self._conn.commit()
 
     def revoke(self, user_id: str) -> dict[str, Any]:
         with self._lock:
@@ -166,3 +251,14 @@ class UserStore:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _row_to_user(row: sqlite3.Row) -> dict[str, Any]:
+    user = dict(row)
+    user["connect_count"] = int(user.get("connect_count") or 0)
+    user["total_rx_bytes"] = int(user.get("total_rx_bytes") or 0)
+    user["total_tx_bytes"] = int(user.get("total_tx_bytes") or 0)
+    user["last_rx_bytes"] = int(user.get("last_rx_bytes") or 0)
+    user["last_tx_bytes"] = int(user.get("last_tx_bytes") or 0)
+    user["session_open"] = bool(int(user.get("session_open") or 0))
+    return user

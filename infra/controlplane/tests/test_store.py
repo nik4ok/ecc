@@ -86,6 +86,45 @@ class UserStoreTest(unittest.TestCase):
         listed = [u for u in self.store.list_users() if u["id"] == user["id"]][0]
         self.assertEqual(listed["status"], "revoked")
 
+    def test_new_user_starts_with_zero_usage(self) -> None:
+        user = self.store.register("stats@example.com", "Stats", _key(20))
+        self.assertEqual(user["connect_count"], 0)
+        self.assertIsNone(user["first_connected_at"])
+        self.assertEqual(user["total_rx_bytes"], 0)
+        self.assertEqual(user["total_tx_bytes"], 0)
+
+    def test_apply_tunnel_peers_counts_session_and_traffic(self) -> None:
+        user = self.store.register("live@example.com", "Live", _key(21))
+        self.store.apply_tunnel_peers(
+            [
+                {
+                    "public_key": user["public_key"],
+                    "latest_handshake": "12 seconds ago",
+                    "transfer": "1.00 KiB received, 2.00 KiB sent",
+                }
+            ],
+            now="2026-08-31T18:04:00+00:00",
+        )
+        stored = self.store.get(user["id"])
+        self.assertEqual(stored["connect_count"], 1)
+        self.assertEqual(stored["first_connected_at"], "2026-08-31T18:04:00+00:00")
+        self.assertEqual(stored["total_rx_bytes"], 1024)
+        self.assertEqual(stored["total_tx_bytes"], 2048)
+
+    def test_apply_tunnel_peers_second_poll_same_session(self) -> None:
+        user = self.store.register("hold@example.com", "Hold", _key(22))
+        peer = {
+            "public_key": user["public_key"],
+            "latest_handshake": "12 seconds ago",
+            "transfer": "1.00 KiB received, 2.00 KiB sent",
+        }
+        self.store.apply_tunnel_peers([peer], now="t1")
+        peer = {**peer, "transfer": "2.00 KiB received, 2.00 KiB sent"}
+        self.store.apply_tunnel_peers([peer], now="t2")
+        stored = self.store.get(user["id"])
+        self.assertEqual(stored["connect_count"], 1)
+        self.assertEqual(stored["total_rx_bytes"], 2048)
+
 
 if __name__ == "__main__":
     unittest.main()

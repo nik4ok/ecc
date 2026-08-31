@@ -9,6 +9,8 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import threading
+import time
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from typing import Any
@@ -18,6 +20,7 @@ from awg_status import merge_users_with_tunnel, parse_awg_show
 from provision import make_provisioner
 from store import DuplicatePublicKeyError, InvalidPublicKeyError, UserStore
 from ticket import issue_ticket, load_node
+from usage import format_bytes, present_user, usage_source_is_usable
 
 HERE = Path(__file__).resolve().parent
 INFRA = HERE.parent
@@ -64,6 +67,7 @@ class ControlPlane:
         )
         self.node = load_node(_servers_json())
         self.provisioner = make_provisioner()
+        self._usage_lock = threading.Lock()
 
     def register(self, payload: dict[str, Any]) -> dict[str, Any]:
         user = self.store.register(
@@ -88,12 +92,23 @@ class ControlPlane:
         raw, source = _read_awg_show()
         return parse_awg_show(raw)["peers"], source
 
+    def refresh_usage(self) -> tuple[list[dict[str, Any]], str]:
+        with self._usage_lock:
+            peers, source = self.tunnel_peers()
+            if usage_source_is_usable(source):
+                self.store.apply_tunnel_peers(peers)
+            return peers, source
+
     def overview(self) -> dict[str, Any]:
-        peers, source = self.tunnel_peers()
-        users = merge_users_with_tunnel(self.store.list_users(), peers)
+        peers, source = self.refresh_usage()
+        users = [
+            present_user(user)
+            for user in merge_users_with_tunnel(self.store.list_users(), peers)
+        ]
         active = [u for u in users if u["status"] == "active"]
         online = sum(1 for u in active if u["online"])
         waiting = sum(1 for u in active if not u["online"])
+        total_bytes = sum(int(u.get("total_bytes") or 0) for u in users)
         return {
             "node": {
                 "server_id": self.node["server_id"],
@@ -106,6 +121,8 @@ class ControlPlane:
                 "online": online,
                 "waiting": waiting,
                 "next_address": self.store.next_address(),
+                "total_traffic": format_bytes(total_bytes),
+                "total_bytes": total_bytes,
             },
             "users": users,
         }
@@ -207,10 +224,21 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    poller = threading.Thread(target=_usage_poll_loop, daemon=True)
+    poller.start()
     server = ThreadingHTTPServer((BIND_HOST, PORT), Handler)
     print(f"NOVA control plane http://{BIND_HOST}:{PORT}", flush=True)
     print(f"db={DB_PATH} provision={os.environ.get('NOVA_PROVISION_MODE', 'local')}", flush=True)
     server.serve_forever()
+
+
+def _usage_poll_loop() -> None:
+    while True:
+        time.sleep(10)
+        try:
+            PLANE.refresh_usage()
+        except Exception as exc:
+            print(f"usage poll failed: {type(exc).__name__}: {exc}", flush=True)
 
 
 if __name__ == "__main__":

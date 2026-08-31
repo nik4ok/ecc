@@ -113,7 +113,7 @@
     }
     .kpis {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(5, 1fr);
       gap: 12px;
       margin-bottom: 16px;
     }
@@ -140,6 +140,7 @@
     }
     .kpi .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
     .kpi.online .value { color: var(--live); }
+    #kpi-traffic { font-size: 22px; }
     .grid {
       display: grid;
       grid-template-columns: 320px 1fr;
@@ -294,6 +295,11 @@
         <div class="value" id="kpi-next">—</div>
         <div class="hint">.1 и .2 заняты</div>
       </article>
+      <article class="kpi">
+        <div class="label">Трафик</div>
+        <div class="value" id="kpi-traffic">—</div>
+        <div class="hint">всего по устройствам</div>
+      </article>
     </section>
 
     <section class="grid">
@@ -315,7 +321,7 @@
 
       <div class="panel">
         <h2>Сессия</h2>
-        <p class="lead">Сшивка базы с <span class="mono">awg show</span>. Трафик без handshake ещё не сессия.</p>
+        <p class="lead">Подключения считаются по handshake. Трафик копится между перезапусками туннеля.</p>
         <div class="table-wrap">
           <table>
             <thead>
@@ -323,9 +329,11 @@
                 <th>Статус</th>
                 <th>Устройство</th>
                 <th>IP</th>
-                <th>Ключ</th>
+                <th>Подключений</th>
+                <th>Первое</th>
                 <th>Handshake</th>
-                <th>Трафик</th>
+                <th>Всего</th>
+                <th>Сессия</th>
               </tr>
             </thead>
             <tbody id="rows"></tbody>
@@ -354,6 +362,13 @@
       return key.slice(0, 8) + "…" + key.slice(-4);
     }
 
+    function formatFirstSeen(iso) {
+      if (!iso) return "—";
+      const date = new Date(iso);
+      if (Number.isNaN(date.getTime())) return iso;
+      return date.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
+    }
+
     async function loadOverview() {
       const res = await fetch("/api/v1/overview");
       const body = await res.json();
@@ -375,6 +390,7 @@
       $("kpi-online").textContent = data.kpis.online;
       $("kpi-wait").textContent = data.kpis.waiting;
       $("kpi-next").textContent = data.kpis.next_address.replace("/32", "");
+      $("kpi-traffic").textContent = (data.kpis && data.kpis.total_traffic) || "0 B";
       const rows = $("rows");
       rows.innerHTML = "";
       data.users.forEach((u) => {
@@ -383,8 +399,10 @@
           statusPill(u),
           null,
           u.client_address,
-          shortKey(u.public_key),
+          String(u.connect_count ?? 0),
+          formatFirstSeen(u.first_connected_at),
           u.latest_handshake || "—",
+          u.total_transfer || "0 B",
           u.transfer || "—",
         ];
         cells.forEach((value, idx) => {
@@ -399,9 +417,9 @@
             sub.textContent = u.email;
             td.appendChild(sub);
           } else {
-            td.className = idx === 2 || idx === 3 ? "mono" : "";
+            td.className = idx === 2 ? "mono" : "";
             td.textContent = value;
-            if (idx === 3) td.title = u.public_key;
+            if (idx === 2) td.title = shortKey(u.public_key) + " · " + u.public_key;
           }
           tr.appendChild(td);
         });

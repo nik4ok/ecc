@@ -49,7 +49,7 @@ def merge_users_with_tunnel(
     for user in users:
         peer = by_key.get(user["public_key"], {})
         handshake = peer.get("latest_handshake")
-        online = _handshake_is_fresh(handshake) and user.get("status") == "active"
+        online = handshake_is_fresh(handshake) and user.get("status") == "active"
         merged.append(
             {
                 **user,
@@ -63,7 +63,7 @@ def merge_users_with_tunnel(
     return merged
 
 
-def _handshake_is_fresh(handshake: str | None) -> bool:
+def handshake_is_fresh(handshake: str | None) -> bool:
     if not handshake:
         return False
     text = handshake.strip().lower()
