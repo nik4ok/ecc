@@ -1,6 +1,6 @@
 # VPN Server Infrastructure & Credentials Guide
 
-> Актуальная боевая нода и хроника ошибок клиента NOVA — в [`docs/FULL_PROJECT_GUIDE.md`](FULL_PROJECT_GUIDE.md) (версия 2.5, вечер 31 августа 2026).
+> Актуальная боевая нода и хроника ошибок клиента NOVA — в [`docs/FULL_PROJECT_GUIDE.md`](FULL_PROJECT_GUIDE.md) (версия 2.7, поздний вечер 31 августа 2026).
 >
 > | | Старая нода (ISP-blocked) | Боевая нода |
 > |---|---|---|
