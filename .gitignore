@@ -22,6 +22,8 @@ docs/FULL_PROJECT_GUIDE.pdf
 # Control plane local book
 infra/controlplane/nova_users.db
 infra/controlplane/*.db
+infra/controlplane/*.db-shm
+infra/controlplane/*.db-wal
 
 # Flutter & Dart artifacts
 .dart_tool/
