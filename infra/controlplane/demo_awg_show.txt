@@ -1,0 +1,25 @@
+interface: awg0
+  public key: s1bBvq1mlFNu+VeAJSP3lD4PGz/SJhAM9Jw3HPNuekw=
+  listening port: 39783
+  jc: 5
+  jmin: 10
+  jmax: 50
+  s1: 45
+  s2: 81
+  s3: 60
+  s4: 12
+  header protection key: 81A3uK4f+uME094NUUP6F+ryryeO5DrPcYB+zYWt6Xc=
+  random trailers: on
+  disable cookies: on
+
+peer: KvasB+XL6z4lAorYnh8OLrL71PPWYIKszRQjTk8zDTY=
+  endpoint: 217.107.126.227:1077
+  allowed ips: 10.8.1.1/32
+  latest handshake: 3 minutes, 6 seconds ago
+  transfer: 5.76 MiB received, 86.59 MiB sent
+
+peer: lzMFxwiPIiewKz4KFxKQG6+f2BkUIZvu8woO3/+bT3w=
+  endpoint: 217.107.126.227:1082
+  allowed ips: 10.8.1.2/32
+  latest handshake: 12 seconds ago
+  transfer: 12.40 MiB received, 40.02 MiB sent

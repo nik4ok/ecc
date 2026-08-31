@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>NOVA — Касса и книга гостей</title>
+  <style>
+    :root {
+      --ink: #e8e0d4;
+      --muted: #9a9186;
+      --line: rgba(232, 224, 212, 0.12);
+      --paper: #14110e;
+      --card: #1c1814;
+      --copper: #d4a574;
+      --copper-dim: #8a6140;
+      --live: #7dcea0;
+      --wait: #c9a227;
+      --danger: #d9896a;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background: var(--paper);
+      color: var(--ink);
+      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(1200px 500px at 10% -10%, rgba(212, 165, 116, 0.08), transparent 55%),
+        repeating-linear-gradient(0deg, transparent, transparent 47px, rgba(232,224,212,0.015) 48px);
+    }
+    .wrap {
+      position: relative;
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 28px 22px 48px;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 18px;
+      margin-bottom: 22px;
+    }
+    .brand {
+      font-size: 13px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      color: var(--copper);
+      font-weight: 700;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 600;
+      margin: 6px 0 0;
+      letter-spacing: -0.02em;
+    }
+    .sub { color: var(--muted); font-size: 14px; margin-top: 6px; max-width: 46ch; }
+    .meta { text-align: right; font-size: 12px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 22px;
+    }
+    .kpi {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 16px 16px 14px;
+    }
+    .kpi .label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
+    .kpi .value { font-size: 28px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+    .kpi .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .grid {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 16px;
+    }
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      padding: 20px;
+    }
+    .panel h2 {
+      font-size: 18px;
+      font-weight: 600;
+      margin: 0 0 4px;
+    }
+    .panel p.lead { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 6px; }
+    input {
+      width: 100%;
+      background: #100e0c;
+      border: 1px solid var(--line);
+      color: var(--ink);
+      padding: 10px 12px;
+      font-size: 14px;
+      font-family: inherit;
+    }
+    input:focus { outline: 1px solid var(--copper-dim); }
+    button {
+      margin-top: 16px;
+      width: 100%;
+      background: var(--copper);
+      color: #1a120c;
+      border: 0;
+      padding: 12px 14px;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    button:hover { filter: brightness(1.05); }
+    button.ghost {
+      background: transparent;
+      color: var(--copper);
+      border: 1px solid var(--copper-dim);
+      margin-top: 8px;
+    }
+    .flash {
+      margin-top: 12px;
+      font-size: 13px;
+      min-height: 1.2em;
+    }
+    .flash.ok { color: var(--live); }
+    .flash.bad { color: var(--danger); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th {
+      text-align: left;
+      font-size: 10px;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+      padding: 8px 8px 10px;
+      border-bottom: 1px solid var(--line);
+    }
+    td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+    .pill {
+      display: inline-block;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      padding: 2px 8px;
+      border: 1px solid var(--line);
+    }
+    .pill.live { color: var(--live); border-color: rgba(125, 206, 160, 0.35); }
+    .pill.wait { color: var(--wait); border-color: rgba(201, 162, 39, 0.35); }
+    .pill.off { color: var(--muted); }
+    footer {
+      margin-top: 28px;
+      color: var(--muted);
+      font-size: 12px;
+      display: flex;
+      justify-content: space-between;
+    }
+    @media (max-width: 900px) {
+      .kpis, .grid { grid-template-columns: 1fr; }
+      header { flex-direction: column; align-items: flex-start; }
+      .meta { text-align: left; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <div class="brand">NOVA · control plane</div>
+        <h1>Касса клуба</h1>
+        <p class="sub">Швейцар по-прежнему пускает только тех, кто в книге. Здесь касса сама вписывает гостя и выдаёт шпаргалку с диалектом ноды.</p>
+      </div>
+      <div class="meta">
+        <div id="node-line">Нода …</div>
+        <div id="clock">—</div>
+      </div>
+    </header>
+
+    <section class="kpis">
+      <article class="kpi"><div class="label">В книге</div><div class="value" id="kpi-total">—</div><div class="hint">включая зарезервированные</div></article>
+      <article class="kpi"><div class="label">Онлайн</div><div class="value" id="kpi-online">—</div><div class="hint">есть latest handshake</div></article>
+      <article class="kpi"><div class="label">Ждут дверь</div><div class="value" id="kpi-wait">—</div><div class="hint">бейдж есть, рукопожатия нет</div></article>
+      <article class="kpi"><div class="label">Следующая комната</div><div class="value" id="kpi-next">—</div><div class="hint">10.8.1.x / 1 и 2 заняты</div></article>
+    </section>
+
+    <section class="grid">
+      <aside class="panel">
+        <h2>Выдать пропуск</h2>
+        <p class="lead">Телефон приносит свой публичный ключ. Приватный ключ на кассу не едет.</p>
+        <form id="issue-form">
+          <label for="email">Почта</label>
+          <input id="email" type="email" required placeholder="guest@example.com" autocomplete="off" />
+          <label for="name">Как зовут устройство</label>
+          <input id="name" type="text" required placeholder="Pixel Никиты" autocomplete="off" />
+          <label for="pubkey">Публичный ключ (бейдж)</label>
+          <input id="pubkey" type="text" required placeholder="32 байта, Base64" autocomplete="off" spellcheck="false" />
+          <button type="submit">Вписать в книгу</button>
+          <button type="button" class="ghost" id="demo-badge">Сгенерировать демо-бейдж</button>
+        </form>
+        <div class="flash" id="flash"></div>
+      </aside>
+
+      <div class="panel">
+        <h2>Кто у двери</h2>
+        <p class="lead">Книга кассы, сшитая с журналом швейцара (`awg show`). Байты без handshake — ещё не вход.</p>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>Статус</th>
+                <th>Гость</th>
+                <th>Комната</th>
+                <th>Бейдж</th>
+                <th>Рукопожатие</th>
+                <th>Трафик</th>
+              </tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      <div>Касса не открывает тоннель сама. Она только пишет швейцару. UDP 39783 по-прежнему шум для провайдера.</div>
+      <div>Автообновление 3 с</div>
+    </footer>
+  </div>
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    function statusPill(user) {
+      if (user.status === "revoked") return '<span class="pill off">отозван</span>';
+      if (user.online) return '<span class="pill live">онлайн</span>';
+      if (user.tunnel_present) return '<span class="pill wait">байты, нет handshake</span>';
+      return '<span class="pill wait">ждёт дверь</span>';
+    }
+
+    function shortKey(key) {
+      if (!key) return "—";
+      return key.slice(0, 8) + "…" + key.slice(-4);
+    }
+
+    async function loadOverview() {
+      const res = await fetch("/api/v1/overview");
+      const body = await res.json();
+      if (!body.success) throw new Error(body.error || "overview failed");
+      const data = body.data;
+        $("node-line").textContent = data.node.endpoint_host + ":" + data.node.endpoint_port + " · AWG3";
+      const src = (data.tunnel && data.tunnel.source) || "unknown";
+      const srcLabel = {
+        live: "живой журнал швейцара",
+        snapshot: "снимок с Мака, не сервер",
+        file: "файл-подмена",
+        empty: "журнал пуст",
+      }[src] || src;
+      $("clock").textContent = srcLabel + " · " + new Date().toLocaleTimeString("ru-RU");
+      $("kpi-total").textContent = data.kpis.total;
+      $("kpi-online").textContent = data.kpis.online;
+      $("kpi-wait").textContent = data.kpis.waiting;
+      $("kpi-next").textContent = data.kpis.next_address.replace("/32", "");
+      const rows = $("rows");
+            rows.innerHTML = "";
+      data.users.forEach((u) => {
+        const tr = document.createElement("tr");
+        const cells = [
+          statusPill(u),
+          null,
+          u.client_address,
+          shortKey(u.public_key),
+          u.latest_handshake || "—",
+          u.transfer || "—",
+        ];
+        cells.forEach((value, idx) => {
+          const td = document.createElement("td");
+          if (idx === 0) {
+            td.innerHTML = value;
+          } else if (idx === 1) {
+            td.appendChild(document.createTextNode(u.display_name));
+            const sub = document.createElement("div");
+            sub.className = "mono";
+            sub.style.color = "var(--muted)";
+            sub.textContent = u.email;
+            td.appendChild(sub);
+          } else {
+            td.className = idx === 2 || idx === 3 ? "mono" : "";
+            td.textContent = value;
+            if (idx === 3) td.title = u.public_key;
+          }
+          tr.appendChild(td);
+        });
+        rows.appendChild(tr);
+      });
+    }
+
+    function randomBadge() {
+      const bytes = new Uint8Array(32);
+      crypto.getRandomValues(bytes);
+      let bin = "";
+      bytes.forEach((b) => { bin += String.fromCharCode(b); });
+      return btoa(bin);
+    }
+
+    $("demo-badge").addEventListener("click", () => {
+      $("pubkey").value = randomBadge();
+      if (!$("email").value) $("email").value = "demo-" + Date.now() + "@nova.local";
+      if (!$("name").value) $("name").value = "Демо-гость";
+      $("flash").className = "flash ok";
+      $("flash").textContent = "Бейдж сгенерирован на этой странице. Это не ключ с телефона — для боевого тоннеля вставьте public key из приложения.";
+    });
+
+    $("issue-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      $("flash").className = "flash";
+      $("flash").textContent = "Пишем швейцару…";
+      try {
+        const res = await fetch("/api/v1/register", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: $("email").value,
+            display_name: $("name").value,
+            public_key: $("pubkey").value,
+          }),
+        });
+        const body = await res.json();
+        if (!body.success) throw new Error(body.error);
+        const t = body.data;
+        $("flash").className = "flash ok";
+        $("flash").textContent = "Готово. Комната " + t.client_address + " · " + t.endpoint_host + ":" + t.endpoint_port;
+        $("pubkey").value = "";
+        await loadOverview();
+      } catch (err) {
+        $("flash").className = "flash bad";
+        $("flash").textContent = err.message || String(err);
+      }
+    });
+
+    loadOverview().catch((err) => {
+      $("flash").className = "flash bad";
+      $("flash").textContent = err.message;
+    });
+    setInterval(() => { loadOverview().catch(() => {}); }, 3000);
+  </script>
+</body>
+</html>

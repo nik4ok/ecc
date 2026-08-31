@@ -1,0 +1,22 @@
+[Unit]
+Description=NOVA control plane (cashier + live awg dashboard)
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/nova-controlplane
+ExecStart=/usr/bin/python3 /opt/nova-controlplane/server.py
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+Environment=NOVA_PROVISION_MODE=docker
+Environment=NOVA_BIND=0.0.0.0
+Environment=NOVA_CONTROL_PORT=8090
+Environment=NOVA_CONTROL_DB=/var/lib/nova-controlplane/nova_users.db
+Environment=NOVA_SERVERS_JSON=/opt/nova-controlplane/servers.json
+
+[Install]
+WantedBy=multi-user.target
