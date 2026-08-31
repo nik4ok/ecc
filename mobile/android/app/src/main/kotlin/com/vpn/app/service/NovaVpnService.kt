@@ -89,7 +89,7 @@ class NovaVpnService : VpnService() {
             // Parse and resolve while the default network still exists.
             // After establish() DNS would fall into an empty tun0.
             AwgGoJni.load(this)
-            val goSettings = AwgGoJni.toGoSettings(config, this)
+            val goSettings = AwgGoJni.toGoSettings(config)
             val uapiPath = dataDir.absolutePath
 
             val clientIp = extractClientIp(config) ?: "10.8.1.2"

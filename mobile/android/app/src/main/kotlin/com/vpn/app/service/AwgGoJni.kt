@@ -34,9 +34,10 @@ object AwgGoJni {
         }
     }
 
-    fun toGoSettings(ini: String, context: Context): String {
+    fun toGoSettings(ini: String): String {
         val parsed = Config.parse(ini.byteInputStream(Charsets.UTF_8))
-        return parsed.toAwgQuickStringResolved(false, false, true, context)
+        // Endpoint is already IPv4; skip DoH/okhttp resolution (excluded at Gradle).
+        return parsed.toAwgQuickString(false, false)
     }
 
     fun turnOn(ifName: String, tunFd: Int, settings: String, uapiPath: String): Int {
