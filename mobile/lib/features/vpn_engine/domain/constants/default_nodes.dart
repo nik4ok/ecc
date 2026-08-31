@@ -9,7 +9,8 @@ class DefaultNodes {
     serverPort: 38037,
     protocolType: VpnProtocolType.amneziaWg,
     publicKey: "dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ=",
-    clientAddress: "10.8.1.1/32",
+    clientAddress: "10.8.1.2/32",
+    clientPrivateKey: "sLpgWUqGOPAuSNKH8WoAiN+s3Mx4boz29R+9IA2Hknw=",
     presharedKey: "8uz3Nv8CoCOp/m7X6eoA02j6n7xKWPH0MahnzrvlhU8=",
     amneziaParams: AmneziaWgParams(
       jc: 5,

@@ -1,4 +1,5 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
     package="com.vpn.app">
 
     <uses-permission android:name="android.permission.INTERNET" />
@@ -14,6 +15,7 @@
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
         android:allowBackup="false"
+        android:extractNativeLibs="true"
         android:theme="@style/LaunchTheme">
 
         <activity
@@ -51,6 +53,13 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="vpn"/>
         </service>
+
+        <service
+            android:name="org.amnezia.awg.backend.AbstractBackend$VpnService"
+            tools:node="remove" />
+        <service
+            android:name="org.amnezia.awg.backend.GoBackend$VpnService"
+            tools:node="remove" />
 
         <meta-data
             android:name="flutterEmbedding"

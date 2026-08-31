@@ -43,11 +43,27 @@ class MainActivity : FlutterActivity() {
         var isPreparingVpn: Boolean = false
 
         fun sendStatus(status: String) {
-            if (status == "CONNECTED" || status == "DISCONNECTED" || status == "ERROR") {
+            if (status == "CONNECTED" ||
+                status == "DISCONNECTED" ||
+                status == "ERROR" ||
+                status == "HANDSHAKING"
+            ) {
                 isPreparingVpn = false
             }
             mainHandler.post {
                 statusSink?.success(status)
+            }
+        }
+
+        fun currentTunnelState(): String {
+            val native = NovaVpnService.nativeStatus
+            return when {
+                native == "CONNECTED" ||
+                    native == "HANDSHAKING" ||
+                    native == "CONNECTING" ||
+                    native == "ERROR" -> native
+                isPreparingVpn -> "CONNECTING"
+                else -> "DISCONNECTED"
             }
         }
     }
@@ -68,12 +84,7 @@ class MainActivity : FlutterActivity() {
                     stopVpnService(result)
                 }
                 "getTunnelState" -> {
-                    val state = when {
-                        NovaVpnService.isRunning -> "CONNECTED"
-                        isPreparingVpn -> "CONNECTING"
-                        else -> "DISCONNECTED"
-                    }
-                    result.success(state)
+                    result.success(currentTunnelState())
                 }
                 else -> {
                     result.notImplemented()
@@ -85,9 +96,9 @@ class MainActivity : FlutterActivity() {
             object : EventChannel.StreamHandler {
                 override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
                     statusSink = events
-                    when {
-                        NovaVpnService.isRunning -> sendStatus("CONNECTED")
-                        isPreparingVpn -> sendStatus("CONNECTING")
+                    val state = currentTunnelState()
+                    if (state != "DISCONNECTED") {
+                        sendStatus(state)
                     }
                 }
 

@@ -6,14 +6,27 @@ import '../../data/datasources/native_vpn_data_source.dart';
 import '../../domain/entities/vpn_profile.dart';
 import '../../domain/generators/amnezia_wg_config_generator.dart';
 import '../../domain/generators/singbox_config_generator.dart';
+import '../../domain/generators/wg_keys.dart';
+
+class _HandshakeTimeoutEvent extends VpnEvent {
+  const _HandshakeTimeoutEvent();
+}
 
 class VpnBloc extends Bloc<VpnEvent, VpnState> {
+  static const String handshakeTimeoutMessage = 'Сервер не ответил на рукопожатие';
+  static const String invalidClientKeyMessage = 'Не задан корректный ключ клиента';
+
   final NativeVpnDataSource _dataSource;
+  final Duration _handshakeTimeoutDuration;
   StreamSubscription<VpnConnectionStatus>? _statusSub;
   StreamSubscription<Map<String, int>>? _statsSub;
+  Timer? _handshakeTimer;
 
-  VpnBloc({required NativeVpnDataSource dataSource})
-      : _dataSource = dataSource,
+  VpnBloc({
+    required NativeVpnDataSource dataSource,
+    Duration handshakeTimeout = const Duration(seconds: 20),
+  })  : _dataSource = dataSource,
+        _handshakeTimeoutDuration = handshakeTimeout,
         super(const VpnState()) {
     on<InitializeVpnEvent>(_onInitialize);
     on<ToggleVpnEvent>(_onToggleVpn);
@@ -21,6 +34,7 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
     on<ToggleSplitTunnelingEvent>(_onToggleSplitTunneling);
     on<VpnStatusUpdatedEvent>(_onStatusUpdated);
     on<VpnStatsUpdatedEvent>(_onStatsUpdated);
+    on<_HandshakeTimeoutEvent>(_onHandshakeTimeout);
 
     _initSubscriptions();
   }
@@ -52,6 +66,20 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
     );
   }
 
+  void _cancelHandshakeTimeout() {
+    _handshakeTimer?.cancel();
+    _handshakeTimer = null;
+  }
+
+  void _armHandshakeTimeout() {
+    _cancelHandshakeTimeout();
+    _handshakeTimer = Timer(_handshakeTimeoutDuration, () {
+      if (!isClosed) {
+        add(const _HandshakeTimeoutEvent());
+      }
+    });
+  }
+
   Future<void> _onInitialize(InitializeVpnEvent event, Emitter<VpnState> emit) async {
     final currentStatus = await _dataSource.getTunnelState();
     if (currentStatus != VpnConnectionStatus.disconnected) {
@@ -63,27 +91,42 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
     if (state.isDisconnecting) return;
 
     if (state.isConnected || state.isConnecting) {
+      _cancelHandshakeTimeout();
       emit(state.copyWith(status: VpnConnectionStatus.disconnecting));
       await _dataSource.stopTunnel();
       emit(state.copyWith(status: VpnConnectionStatus.disconnected));
     } else {
+      final profile = state.currentProfile;
+
+      if (profile.protocolType == VpnProtocolType.amneziaWg) {
+        final clientPrivateKey = profile.clientPrivateKey;
+        if (clientPrivateKey == null || !WgKeys.isValid(clientPrivateKey)) {
+          emit(state.copyWith(
+            status: VpnConnectionStatus.error,
+            errorMessage: invalidClientKeyMessage,
+          ));
+          return;
+        }
+      }
+
       emit(state.copyWith(
         status: VpnConnectionStatus.connecting,
         errorMessage: null,
       ));
-
-      final profile = state.currentProfile;
+      _armHandshakeTimeout();
 
       try {
         final config = _generateConfig(profile);
         final success = await _dataSource.startTunnel(config);
         if (!success && state.isConnecting) {
+          _cancelHandshakeTimeout();
           emit(state.copyWith(
             status: VpnConnectionStatus.error,
             errorMessage: "Не удалось установить соединение с сервером",
           ));
         }
       } catch (e) {
+        _cancelHandshakeTimeout();
         emit(state.copyWith(
           status: VpnConnectionStatus.error,
           errorMessage: "Ошибка конфигурации: $e",
@@ -92,14 +135,31 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
     }
   }
 
+  Future<void> _onHandshakeTimeout(
+    _HandshakeTimeoutEvent event,
+    Emitter<VpnState> emit,
+  ) async {
+    if (!state.isConnecting) return;
+    _cancelHandshakeTimeout();
+    await _dataSource.stopTunnel();
+    emit(state.copyWith(
+      status: VpnConnectionStatus.error,
+      errorMessage: handshakeTimeoutMessage,
+    ));
+  }
+
   String _generateConfig(VpnProfile profile) {
     switch (profile.protocolType) {
       case VpnProtocolType.amneziaWg:
         if (profile.amneziaParams == null) {
           throw StateError('Параметры AmneziaWG не настроены для профиля: ${profile.name}');
         }
+        final clientPrivateKey = profile.clientPrivateKey;
+        if (clientPrivateKey == null || !WgKeys.isValid(clientPrivateKey)) {
+          throw StateError(invalidClientKeyMessage);
+        }
         return AmneziaWgConfigGenerator.generateClientConfig(
-          clientPrivateKey: profile.clientPrivateKey ?? "cHJpdmF0ZWtleXRlc3Q=",
+          clientPrivateKey: clientPrivateKey,
           clientAddress: profile.clientAddress ?? "10.8.1.2/32",
           serverPublicKey: profile.publicKey ?? "dn+S2ksWUSFdjL69a8Q2rk+cBhV6Nt+YOAM2QVwmpAQ=",
           serverAddress: profile.serverAddress,
@@ -149,12 +209,19 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
     if (event.status == VpnConnectionStatus.disconnected &&
         state.isConnected &&
         !state.isDisconnecting) {
+      _cancelHandshakeTimeout();
       emit(state.copyWith(
         status: VpnConnectionStatus.error,
         errorMessage:
             'Система закрыла VPN сразу после разрешения. Проверьте уведомления и повторите подключение.',
       ));
       return;
+    }
+
+    if (event.status == VpnConnectionStatus.connected ||
+        event.status == VpnConnectionStatus.error ||
+        event.status == VpnConnectionStatus.disconnected) {
+      _cancelHandshakeTimeout();
     }
 
     emit(state.copyWith(status: event.status));
@@ -166,6 +233,7 @@ class VpnBloc extends Bloc<VpnEvent, VpnState> {
 
   @override
   Future<void> close() async {
+    _cancelHandshakeTimeout();
     await _statusSub?.cancel();
     await _statsSub?.cancel();
     return super.close();

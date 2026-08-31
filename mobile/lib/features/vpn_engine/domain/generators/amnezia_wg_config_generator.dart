@@ -13,7 +13,7 @@ class AmneziaWgConfigGenerator {
     String? presharedKey,
     List<String> dnsServers = const ['1.1.1.1', '8.8.8.8'],
     List<String> allowedIps = const ['0.0.0.0/0', '::/0'],
-    int mtu = 1280,
+    int mtu = 1360,
     int persistentKeepalive = 25,
   }) {
     final errors = params.validate();

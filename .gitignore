@@ -16,6 +16,8 @@ langfuse/
 *.log
 *.tmp
 docs/FULL_PROJECT_GUIDE.md
+docs/FULL_PROJECT_GUIDE.html
+docs/FULL_PROJECT_GUIDE.pdf
 
 # Flutter & Dart artifacts
 .dart_tool/

@@ -1,5 +1,6 @@
 // ignore_for_file: prefer_const_constructors
 import 'package:flutter_test/flutter_test.dart';
+import 'package:vpn_app/features/vpn_engine/domain/constants/default_nodes.dart';
 import 'package:vpn_app/features/vpn_engine/domain/entities/amnezia_wg_params.dart';
 import 'package:vpn_app/features/vpn_engine/domain/generators/amnezia_wg_config_generator.dart';
 
@@ -198,6 +199,44 @@ void main() {
 
   test('custom persistentKeepalive appears in config', () {
     expect(generate(persistentKeepalive: 60), contains('PersistentKeepalive = 60'));
+  });
+
+  test('implicit MTU default is 1360', () {
+    final config = AmneziaWgConfigGenerator.generateClientConfig(
+      clientPrivateKey: 'cHJpdmF0ZWtleXRlc3Q=',
+      clientAddress: '10.8.0.2/32',
+      serverPublicKey: 'cHVibGlja2V5dGVzdA==',
+      serverAddress: '1.2.3.4',
+      serverPort: 51820,
+      params: validParams,
+    );
+    expect(config, contains('MTU = 1360'));
+  });
+
+  test('netherlandsAmneziaWg produces a handshake-ready INI', () {
+    const node = DefaultNodes.netherlandsAmneziaWg;
+    expect(node.clientPrivateKey, isNotNull);
+    expect(node.clientAddress, isNotNull);
+    expect(node.publicKey, isNotNull);
+    expect(node.amneziaParams, isNotNull);
+
+    final config = AmneziaWgConfigGenerator.generateClientConfig(
+      clientPrivateKey: node.clientPrivateKey!,
+      clientAddress: node.clientAddress!,
+      serverPublicKey: node.publicKey!,
+      serverAddress: node.serverAddress,
+      serverPort: node.serverPort,
+      params: node.amneziaParams!,
+      presharedKey: node.presharedKey,
+    );
+
+    expect(config, contains('Address = 10.8.1.2/32'));
+    expect(config, contains('Endpoint = 92.51.46.12:38037'));
+    expect(config, contains('HeaderProtectionKey'));
+    expect(config, contains('PresharedKey'));
+    expect(config, contains('S3'));
+    expect(config, contains('S4'));
+    expect(config, contains('MTU = 1360'));
   });
 
   // ── Invalid params throw ArgumentError ────────────────────────────────────────

@@ -3,6 +3,7 @@ import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:vpn_app/features/vpn_engine/data/datasources/native_vpn_data_source.dart';
+import 'package:vpn_app/features/vpn_engine/domain/constants/default_nodes.dart';
 import 'package:vpn_app/features/vpn_engine/domain/entities/vpn_profile.dart';
 import 'package:vpn_app/features/vpn_engine/presentation/bloc/vpn_bloc.dart';
 import 'package:vpn_app/features/vpn_engine/presentation/bloc/vpn_event.dart';
@@ -118,6 +119,181 @@ void main() {
       seed: () => VpnState(currentProfile: amneziaProfile()),
       act: (bloc) => bloc.add(const ToggleVpnEvent()),
       verify: (_) => verify(() => mockDataSource.startTunnel(any())).called(1),
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'emits handshaking then connected from native stream while connecting',
+      build: () {
+        final controllers = stubDataSource(mockDataSource);
+        statusCtrl = controllers.status;
+        statsCtrl = controllers.stats;
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
+      act: (bloc) async {
+        bloc.add(const ToggleVpnEvent());
+        await Future<void>.delayed(Duration.zero);
+        statusCtrl.add(VpnConnectionStatus.handshaking);
+        statusCtrl.add(VpnConnectionStatus.connected);
+      },
+      expect: () => [
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.handshaking),
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connected),
+      ],
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'emits error when native reports error while connecting',
+      build: () {
+        final controllers = stubDataSource(mockDataSource);
+        statusCtrl = controllers.status;
+        statsCtrl = controllers.stats;
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
+      act: (bloc) async {
+        bloc.add(const ToggleVpnEvent());
+        await Future<void>.delayed(Duration.zero);
+        statusCtrl.add(VpnConnectionStatus.error);
+      },
+      expect: () => [
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.error),
+      ],
+    );
+  });
+
+  // ── ToggleVpnEvent: invalid / missing client key ─────────────────────────────
+
+  group('ToggleVpnEvent — missing or invalid clientPrivateKey', () {
+    VpnProfile profileWithoutKey() => VpnProfile(
+          id: 'test-awg-nokey',
+          name: 'Test AmneziaWG',
+          serverAddress: '1.2.3.4',
+          serverPort: 51820,
+          protocolType: VpnProtocolType.amneziaWg,
+          clientAddress: '10.8.0.2/32',
+          publicKey: 'dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXl0ZXN0cA==',
+          amneziaParams: validParams(),
+        );
+
+    VpnProfile profileWithStubKey() => VpnProfile(
+          id: 'test-awg-stub',
+          name: 'Test AmneziaWG',
+          serverAddress: '1.2.3.4',
+          serverPort: 51820,
+          protocolType: VpnProtocolType.amneziaWg,
+          clientPrivateKey: 'cHJpdmF0ZWtleXRlc3Q=',
+          clientAddress: '10.8.0.2/32',
+          publicKey: 'dGVzdHB1YmxpY2tleXRlc3RwdWJsaWNrZXl0ZXN0cA==',
+          amneziaParams: validParams(),
+        );
+
+    blocTest<VpnBloc, VpnState>(
+      'missing clientPrivateKey emits error and never calls startTunnel',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(currentProfile: profileWithoutKey()),
+      act: (bloc) => bloc.add(const ToggleVpnEvent()),
+      expect: () => [
+        isA<VpnState>()
+            .having((s) => s.status, 'status', VpnConnectionStatus.error)
+            .having((s) => s.errorMessage, 'errorMessage', isNotEmpty),
+      ],
+      verify: (_) => verifyNever(() => mockDataSource.startTunnel(any())),
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'invalid stub clientPrivateKey emits error and never calls startTunnel',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => VpnState(currentProfile: profileWithStubKey()),
+      act: (bloc) => bloc.add(const ToggleVpnEvent()),
+      expect: () => [
+        isA<VpnState>()
+            .having((s) => s.status, 'status', VpnConnectionStatus.error)
+            .having((s) => s.errorMessage, 'errorMessage', isNotEmpty),
+      ],
+      verify: (_) => verifyNever(() => mockDataSource.startTunnel(any())),
+    );
+  });
+
+  // ── ToggleVpnEvent: default production node ─────────────────────────────────
+
+  group('ToggleVpnEvent — DefaultNodes.netherlandsAmneziaWg', () {
+    blocTest<VpnBloc, VpnState>(
+      'startTunnel INI uses client 10.8.1.2/32 and not the stub private key',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(dataSource: mockDataSource);
+      },
+      seed: () => const VpnState(currentProfile: DefaultNodes.netherlandsAmneziaWg),
+      act: (bloc) => bloc.add(const ToggleVpnEvent()),
+      verify: (_) {
+        final captured = verify(() => mockDataSource.startTunnel(captureAny())).captured;
+        expect(captured, isNotEmpty);
+        final ini = captured.single as String;
+        expect(ini, contains('Address = 10.8.1.2/32'));
+        expect(ini, isNot(contains('cHJpdmF0ZWtleXRlc3Q=')));
+      },
+    );
+  });
+
+  // ── Handshake safety timeout ─────────────────────────────────────────────────
+
+  group('handshake safety timeout', () {
+    blocTest<VpnBloc, VpnState>(
+      'stopTunnel and handshake error if native never confirms connected',
+      build: () {
+        stubDataSource(mockDataSource);
+        return VpnBloc(
+          dataSource: mockDataSource,
+          handshakeTimeout: const Duration(milliseconds: 50),
+        );
+      },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
+      act: (bloc) => bloc.add(const ToggleVpnEvent()),
+      wait: const Duration(milliseconds: 80),
+      expect: () => [
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
+        isA<VpnState>()
+            .having((s) => s.status, 'status', VpnConnectionStatus.error)
+            .having(
+              (s) => s.errorMessage,
+              'errorMessage',
+              'Сервер не ответил на рукопожатие',
+            ),
+      ],
+      verify: (_) => verify(() => mockDataSource.stopTunnel()).called(1),
+    );
+
+    blocTest<VpnBloc, VpnState>(
+      'cancels timeout after native CONNECTED so a late timer does not error',
+      build: () {
+        final controllers = stubDataSource(mockDataSource);
+        statusCtrl = controllers.status;
+        statsCtrl = controllers.stats;
+        return VpnBloc(
+          dataSource: mockDataSource,
+          handshakeTimeout: const Duration(milliseconds: 50),
+        );
+      },
+      seed: () => VpnState(currentProfile: amneziaProfile()),
+      act: (bloc) async {
+        bloc.add(const ToggleVpnEvent());
+        await Future<void>.delayed(Duration.zero);
+        statusCtrl.add(VpnConnectionStatus.connected);
+      },
+      wait: const Duration(milliseconds: 80),
+      expect: () => [
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connecting),
+        isA<VpnState>().having((s) => s.status, 'status', VpnConnectionStatus.connected),
+      ],
     );
   });
 
