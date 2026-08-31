@@ -92,7 +92,8 @@ class ApiTest(unittest.TestCase):
         req = urllib.request.Request(self.base + "/")
         with urllib.request.urlopen(req, timeout=3) as resp:
             html = resp.read().decode("utf-8")
-        self.assertIn("Касса клуба", html)
+        self.assertIn("Добавить устройство", html)
+        self.assertNotIn("Касса клуба", html)
         self.assertIn("/api/v1/register", html)
 
 

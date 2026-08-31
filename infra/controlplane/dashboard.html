@@ -3,173 +3,255 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>NOVA — Касса и книга гостей</title>
+  <title>NOVA — устройства</title>
   <style>
     :root {
-      --ink: #e8e0d4;
-      --muted: #9a9186;
-      --line: rgba(232, 224, 212, 0.12);
-      --paper: #14110e;
-      --card: #1c1814;
-      --copper: #d4a574;
-      --copper-dim: #8a6140;
-      --live: #7dcea0;
-      --wait: #c9a227;
-      --danger: #d9896a;
+      --bg: #090d16;
+      --surface: #0f172a;
+      --surface-2: #111827;
+      --ink: #e8eef7;
+      --muted: #8b9bb4;
+      --line: rgba(148, 163, 184, 0.16);
+      --sky: #38bdf8;
+      --sky-dim: #0284c7;
+      --live: #34d399;
+      --wait: #f59e0b;
+      --danger: #f87171;
+      --radius: 14px;
+      --radius-sm: 10px;
     }
     * { box-sizing: border-box; }
     html, body {
       margin: 0;
       min-height: 100%;
-      background: var(--paper);
+      background: var(--bg);
       color: var(--ink);
-      font-family: "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
       -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
-    body::before {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      background:
-        radial-gradient(1200px 500px at 10% -10%, rgba(212, 165, 116, 0.08), transparent 55%),
-        repeating-linear-gradient(0deg, transparent, transparent 47px, rgba(232,224,212,0.015) 48px);
+    body {
+      background-image:
+        radial-gradient(900px 420px at 8% -12%, rgba(2, 132, 199, 0.16), transparent 55%),
+        radial-gradient(700px 360px at 100% 0%, rgba(16, 185, 129, 0.08), transparent 50%);
     }
     .wrap {
-      position: relative;
-      max-width: 1180px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 28px 22px 48px;
+      padding: 24px 20px 40px;
     }
     header {
       display: flex;
       justify-content: space-between;
-      align-items: flex-end;
+      align-items: flex-start;
       gap: 16px;
-      border-bottom: 1px solid var(--line);
-      padding-bottom: 18px;
-      margin-bottom: 22px;
+      margin-bottom: 20px;
+    }
+    .brand-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .mark {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(145deg, #38bdf8, #0284c7);
+      box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.12);
     }
     .brand {
-      font-size: 13px;
-      letter-spacing: 0.28em;
+      font-size: 12px;
+      letter-spacing: 0.22em;
       text-transform: uppercase;
-      color: var(--copper);
+      color: var(--sky);
       font-weight: 700;
     }
     h1 {
-      font-size: 32px;
-      font-weight: 600;
-      margin: 6px 0 0;
-      letter-spacing: -0.02em;
+      font-size: 26px;
+      font-weight: 700;
+      margin: 8px 0 0;
+      letter-spacing: -0.03em;
+      text-wrap: balance;
     }
-    .sub { color: var(--muted); font-size: 14px; margin-top: 6px; max-width: 46ch; }
-    .meta { text-align: right; font-size: 12px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin: 6px 0 0;
+      max-width: 52ch;
+      text-wrap: pretty;
+    }
+    .meta {
+      text-align: right;
+      font-size: 12px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .source {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 8px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .source .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--wait);
+    }
+    .source.live .dot {
+      background: var(--live);
+      box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.18);
+      animation: pulse 2.4s ease-out infinite;
+    }
+    @keyframes pulse {
+      0% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.35); }
+      100% { box-shadow: 0 0 0 8px rgba(52, 211, 153, 0); }
+    }
     .kpis {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 12px;
-      margin-bottom: 22px;
+      margin-bottom: 16px;
     }
     .kpi {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       padding: 16px 16px 14px;
+      box-shadow: 0 8px 24px -18px rgba(0, 0, 0, 0.8);
     }
-    .kpi .label { font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); }
-    .kpi .value { font-size: 28px; margin-top: 8px; font-variant-numeric: tabular-nums; }
+    .kpi .label {
+      font-size: 11px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--muted);
+      font-weight: 600;
+    }
+    .kpi .value {
+      font-size: 28px;
+      margin-top: 8px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
     .kpi .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .kpi.online .value { color: var(--live); }
     .grid {
       display: grid;
-      grid-template-columns: 340px 1fr;
+      grid-template-columns: 320px 1fr;
       gap: 16px;
     }
     .panel {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--line);
+      border-radius: var(--radius);
       padding: 20px;
     }
     .panel h2 {
-      font-size: 18px;
-      font-weight: 600;
+      font-size: 16px;
+      font-weight: 650;
       margin: 0 0 4px;
+      letter-spacing: -0.02em;
     }
-    .panel p.lead { color: var(--muted); font-size: 13px; margin: 0 0 16px; }
-    label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 6px; }
+    .panel p.lead { color: var(--muted); font-size: 13px; margin: 0 0 16px; text-wrap: pretty; }
+    label { display: block; font-size: 12px; color: var(--muted); margin: 12px 0 6px; font-weight: 600; }
     input {
       width: 100%;
-      background: #100e0c;
+      background: var(--bg);
       border: 1px solid var(--line);
+      border-radius: var(--radius-sm);
       color: var(--ink);
-      padding: 10px 12px;
+      padding: 11px 12px;
       font-size: 14px;
       font-family: inherit;
+      min-height: 44px;
     }
-    input:focus { outline: 1px solid var(--copper-dim); }
+    input:focus {
+      outline: 2px solid rgba(56, 189, 248, 0.45);
+      outline-offset: 1px;
+      border-color: var(--sky-dim);
+    }
     button {
       margin-top: 16px;
       width: 100%;
-      background: var(--copper);
-      color: #1a120c;
+      background: var(--sky);
+      color: #082032;
       border: 0;
+      border-radius: var(--radius-sm);
       padding: 12px 14px;
+      min-height: 44px;
       font-size: 14px;
       font-weight: 700;
-      letter-spacing: 0.04em;
       cursor: pointer;
       font-family: inherit;
+      transition-property: transform, background-color, filter;
+      transition-duration: 150ms;
+      transition-timing-function: ease-out;
     }
-    button:hover { filter: brightness(1.05); }
+    button:hover { filter: brightness(1.06); }
+    button:active { transform: scale(0.98); }
     button.ghost {
       background: transparent;
-      color: var(--copper);
-      border: 1px solid var(--copper-dim);
+      color: var(--sky);
+      border: 1px solid rgba(56, 189, 248, 0.35);
       margin-top: 8px;
     }
     .flash {
       margin-top: 12px;
       font-size: 13px;
       min-height: 1.2em;
+      text-wrap: pretty;
     }
     .flash.ok { color: var(--live); }
     .flash.bad { color: var(--danger); }
+    .table-wrap { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     th {
       text-align: left;
       font-size: 10px;
-      letter-spacing: 0.14em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--muted);
-      font-weight: 600;
+      font-weight: 700;
       padding: 8px 8px 10px;
       border-bottom: 1px solid var(--line);
     }
     td {
-      padding: 10px 8px;
+      padding: 12px 8px;
       border-bottom: 1px solid var(--line);
       vertical-align: top;
     }
+    tbody tr:hover td { background: rgba(56, 189, 248, 0.04); }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
     .pill {
-      display: inline-block;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
       font-size: 11px;
-      letter-spacing: 0.04em;
-      padding: 2px 8px;
+      font-weight: 650;
+      letter-spacing: 0.02em;
+      padding: 3px 8px;
+      border-radius: 999px;
       border: 1px solid var(--line);
     }
-    .pill.live { color: var(--live); border-color: rgba(125, 206, 160, 0.35); }
-    .pill.wait { color: var(--wait); border-color: rgba(201, 162, 39, 0.35); }
+    .pill.live { color: var(--live); border-color: rgba(52, 211, 153, 0.35); background: rgba(52, 211, 153, 0.08); }
+    .pill.wait { color: var(--wait); border-color: rgba(245, 158, 11, 0.35); background: rgba(245, 158, 11, 0.08); }
     .pill.off { color: var(--muted); }
     footer {
-      margin-top: 28px;
+      margin-top: 22px;
       color: var(--muted);
       font-size: 12px;
       display: flex;
       justify-content: space-between;
+      gap: 12px;
     }
     @media (max-width: 900px) {
       .kpis, .grid { grid-template-columns: 1fr; }
-      header { flex-direction: column; align-items: flex-start; }
+      header { flex-direction: column; }
       .meta { text-align: left; }
     }
   </style>
@@ -178,52 +260,71 @@
   <div class="wrap">
     <header>
       <div>
-        <div class="brand">NOVA · control plane</div>
-        <h1>Касса клуба</h1>
-        <p class="sub">Швейцар по-прежнему пускает только тех, кто в книге. Здесь касса сама вписывает гостя и выдаёт шпаргалку с диалектом ноды.</p>
+        <div class="brand-row">
+          <div class="mark" aria-hidden="true"></div>
+          <div class="brand">NOVA</div>
+        </div>
+        <h1>Устройства</h1>
+        <p class="sub">Кто подключён к ноде, кто ждёт handshake, и форма для нового телефона. Приватный ключ на сервер не отправляется.</p>
       </div>
       <div class="meta">
         <div id="node-line">Нода …</div>
-        <div id="clock">—</div>
+        <div class="source" id="source-chip"><span class="dot"></span><span id="clock">—</span></div>
       </div>
     </header>
 
     <section class="kpis">
-      <article class="kpi"><div class="label">В книге</div><div class="value" id="kpi-total">—</div><div class="hint">включая зарезервированные</div></article>
-      <article class="kpi"><div class="label">Онлайн</div><div class="value" id="kpi-online">—</div><div class="hint">есть latest handshake</div></article>
-      <article class="kpi"><div class="label">Ждут дверь</div><div class="value" id="kpi-wait">—</div><div class="hint">бейдж есть, рукопожатия нет</div></article>
-      <article class="kpi"><div class="label">Следующая комната</div><div class="value" id="kpi-next">—</div><div class="hint">10.8.1.x / 1 и 2 заняты</div></article>
+      <article class="kpi">
+        <div class="label">Устройства</div>
+        <div class="value" id="kpi-total">—</div>
+        <div class="hint">в базе, включая служебные</div>
+      </article>
+      <article class="kpi online">
+        <div class="label">Онлайн</div>
+        <div class="value" id="kpi-online">—</div>
+        <div class="hint">есть handshake</div>
+      </article>
+      <article class="kpi">
+        <div class="label">Ожидают</div>
+        <div class="value" id="kpi-wait">—</div>
+        <div class="hint">ключ есть, туннеля нет</div>
+      </article>
+      <article class="kpi">
+        <div class="label">Следующий IP</div>
+        <div class="value" id="kpi-next">—</div>
+        <div class="hint">.1 и .2 заняты</div>
+      </article>
     </section>
 
     <section class="grid">
       <aside class="panel">
-        <h2>Выдать пропуск</h2>
-        <p class="lead">Телефон приносит свой публичный ключ. Приватный ключ на кассу не едет.</p>
+        <h2>Добавить устройство</h2>
+        <p class="lead">Вставьте публичный ключ с телефона. Приватный остаётся на устройстве.</p>
         <form id="issue-form">
           <label for="email">Почта</label>
-          <input id="email" type="email" required placeholder="guest@example.com" autocomplete="off" />
-          <label for="name">Как зовут устройство</label>
-          <input id="name" type="text" required placeholder="Pixel Никиты" autocomplete="off" />
-          <label for="pubkey">Публичный ключ (бейдж)</label>
+          <input id="email" type="email" required placeholder="user@example.com" autocomplete="off" />
+          <label for="name">Имя устройства</label>
+          <input id="name" type="text" required placeholder="Pixel" autocomplete="off" />
+          <label for="pubkey">Публичный ключ</label>
           <input id="pubkey" type="text" required placeholder="32 байта, Base64" autocomplete="off" spellcheck="false" />
-          <button type="submit">Вписать в книгу</button>
-          <button type="button" class="ghost" id="demo-badge">Сгенерировать демо-бейдж</button>
+          <button type="submit">Добавить устройство</button>
+          <button type="button" class="ghost" id="demo-badge">Тестовый ключ</button>
         </form>
         <div class="flash" id="flash"></div>
       </aside>
 
       <div class="panel">
-        <h2>Кто у двери</h2>
-        <p class="lead">Книга кассы, сшитая с журналом швейцара (`awg show`). Байты без handshake — ещё не вход.</p>
-        <div style="overflow-x:auto">
+        <h2>Сессия</h2>
+        <p class="lead">Сшивка базы с <span class="mono">awg show</span>. Трафик без handshake ещё не сессия.</p>
+        <div class="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Статус</th>
-                <th>Гость</th>
-                <th>Комната</th>
-                <th>Бейдж</th>
-                <th>Рукопожатие</th>
+                <th>Устройство</th>
+                <th>IP</th>
+                <th>Ключ</th>
+                <th>Handshake</th>
                 <th>Трафик</th>
               </tr>
             </thead>
@@ -234,8 +335,8 @@
     </section>
 
     <footer>
-      <div>Касса не открывает тоннель сама. Она только пишет швейцару. UDP 39783 по-прежнему шум для провайдера.</div>
-      <div>Автообновление 3 с</div>
+      <div>UDP 39783 · автообновление 3 с</div>
+      <div id="footer-src"></div>
     </footer>
   </div>
   <script>
@@ -244,8 +345,8 @@
     function statusPill(user) {
       if (user.status === "revoked") return '<span class="pill off">отозван</span>';
       if (user.online) return '<span class="pill live">онлайн</span>';
-      if (user.tunnel_present) return '<span class="pill wait">байты, нет handshake</span>';
-      return '<span class="pill wait">ждёт дверь</span>';
+      if (user.tunnel_present) return '<span class="pill wait">нет handshake</span>';
+      return '<span class="pill wait">офлайн</span>';
     }
 
     function shortKey(key) {
@@ -258,21 +359,24 @@
       const body = await res.json();
       if (!body.success) throw new Error(body.error || "overview failed");
       const data = body.data;
-        $("node-line").textContent = data.node.endpoint_host + ":" + data.node.endpoint_port + " · AWG3";
+      $("node-line").textContent = data.node.endpoint_host + ":" + data.node.endpoint_port + " · AWG3";
       const src = (data.tunnel && data.tunnel.source) || "unknown";
       const srcLabel = {
-        live: "живой журнал швейцара",
-        snapshot: "снимок с Мака, не сервер",
-        file: "файл-подмена",
-        empty: "журнал пуст",
+        live: "данные с ноды",
+        snapshot: "локальный снимок",
+        file: "файл",
+        empty: "туннель пуст",
       }[src] || src;
+      const chip = $("source-chip");
+      chip.classList.toggle("live", src === "live");
       $("clock").textContent = srcLabel + " · " + new Date().toLocaleTimeString("ru-RU");
+      $("footer-src").textContent = srcLabel;
       $("kpi-total").textContent = data.kpis.total;
       $("kpi-online").textContent = data.kpis.online;
       $("kpi-wait").textContent = data.kpis.waiting;
       $("kpi-next").textContent = data.kpis.next_address.replace("/32", "");
       const rows = $("rows");
-            rows.innerHTML = "";
+      rows.innerHTML = "";
       data.users.forEach((u) => {
         const tr = document.createElement("tr");
         const cells = [
@@ -316,15 +420,15 @@
     $("demo-badge").addEventListener("click", () => {
       $("pubkey").value = randomBadge();
       if (!$("email").value) $("email").value = "demo-" + Date.now() + "@nova.local";
-      if (!$("name").value) $("name").value = "Демо-гость";
+      if (!$("name").value) $("name").value = "Тест";
       $("flash").className = "flash ok";
-      $("flash").textContent = "Бейдж сгенерирован на этой странице. Это не ключ с телефона — для боевого тоннеля вставьте public key из приложения.";
+      $("flash").textContent = "Тестовый ключ. В туннель не пустит — для проверки формы. С телефона вставьте настоящий public key.";
     });
 
     $("issue-form").addEventListener("submit", async (event) => {
       event.preventDefault();
       $("flash").className = "flash";
-      $("flash").textContent = "Пишем швейцару…";
+      $("flash").textContent = "Добавляем…";
       try {
         const res = await fetch("/api/v1/register", {
           method: "POST",
@@ -339,7 +443,7 @@
         if (!body.success) throw new Error(body.error);
         const t = body.data;
         $("flash").className = "flash ok";
-        $("flash").textContent = "Готово. Комната " + t.client_address + " · " + t.endpoint_host + ":" + t.endpoint_port;
+        $("flash").textContent = "Готово. IP " + t.client_address + " · " + t.endpoint_host + ":" + t.endpoint_port;
         $("pubkey").value = "";
         await loadOverview();
       } catch (err) {
