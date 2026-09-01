@@ -88,5 +88,40 @@ class ChatIdTest(unittest.TestCase):
         self.assertIsNone(bot_mod.chat_id_of({}))
 
 
+class ConsumeUpdateTest(unittest.TestCase):
+    def test_poison_update_still_advances_offset(self) -> None:
+        class BoomApi:
+            def dispatch(self, chat_id, actions):
+                raise RuntimeError("handler exploded")
+
+        offset = bot_mod.consume_update(
+            BoomApi(),
+            None,
+            {
+                "update_id": 50,
+                "message": {
+                    "from": {"id": 1, "first_name": "A"},
+                    "chat": {"id": 1, "type": "private"},
+                    "text": "/start",
+                },
+            },
+            offset=10,
+        )
+        self.assertEqual(offset, 51)
+
+    def test_missing_chat_still_advances_offset(self) -> None:
+        class QuietApi:
+            def dispatch(self, chat_id, actions):
+                raise AssertionError("should not dispatch")
+
+        offset = bot_mod.consume_update(
+            QuietApi(),
+            None,
+            {"update_id": 7, "edited_message": {}},
+            offset=1,
+        )
+        self.assertEqual(offset, 8)
+
+
 if __name__ == "__main__":
     unittest.main()

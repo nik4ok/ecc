@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import socket
 import uuid
 from pathlib import Path
 from typing import Any
@@ -16,15 +17,48 @@ class TelegramApiError(RuntimeError):
     pass
 
 
+_ORIGINAL_GETADDRINFO = socket.getaddrinfo
+_IPV4_INSTALLED = False
+
+
+def telegram_addr_family(host: object, family: int) -> int:
+    if _is_telegram_host(host) and family in (0, socket.AF_UNSPEC):
+        return socket.AF_INET
+    return family
+
+
+def prefer_ipv4_for_telegram() -> None:
+    global _IPV4_INSTALLED
+    if _IPV4_INSTALLED:
+        return
+
+    def wrapped(host, port, family=0, type=0, proto=0, flags=0):
+        chosen = telegram_addr_family(host, family)
+        return _ORIGINAL_GETADDRINFO(host, port, chosen, type, proto, flags)
+
+    socket.getaddrinfo = wrapped  # type: ignore[assignment]
+    _IPV4_INSTALLED = True
+
+
+def _is_telegram_host(host: object) -> bool:
+    if not isinstance(host, str):
+        return False
+    name = host.lower().rstrip(".")
+    return name == "api.telegram.org" or name.endswith(".telegram.org")
+
 class TelegramApi:
-    def __init__(self, token: str, timeout: int = 40) -> None:
+    def __init__(self, token: str, timeout: int = 15) -> None:
         cleaned = (token or "").strip()
         if not cleaned:
             raise TelegramApiError("bot token is empty")
+        prefer_ipv4_for_telegram()
         self._token = cleaned
         self._timeout = timeout
 
-    def get_updates(self, offset: int | None, timeout: int = 25) -> list[dict[str, Any]]:
+    def delete_webhook(self) -> None:
+        self._call("deleteWebhook", {"drop_pending_updates": False})
+
+    def get_updates(self, offset: int | None, timeout: int = 10) -> list[dict[str, Any]]:
         payload: dict[str, Any] = {
             "timeout": timeout,
             "allowed_updates": [
@@ -34,7 +68,7 @@ class TelegramApi:
         }
         if offset is not None:
             payload["offset"] = offset
-        data = self._call("getUpdates", payload)
+        data = self._call("getUpdates", payload, http_timeout=timeout + 10)
         if not isinstance(data, list):
             return []
         return [item for item in data if isinstance(item, dict)]
@@ -113,18 +147,19 @@ class TelegramApi:
             elif isinstance(action, PreCheckoutAnswer):
                 self.answer_pre_checkout(action)
 
-    def _call(self, method: str, payload: dict[str, Any]) -> Any:
+    def _call(self, method: str, payload: dict[str, Any], http_timeout: int | None = None) -> Any:
         request = Request(
             self._url(method),
             data=json.dumps(payload).encode("utf-8"),
             method="POST",
             headers={"Content-Type": "application/json"},
         )
-        return self._open(request)
+        return self._open(request, timeout=http_timeout)
 
-    def _open(self, request: Request) -> Any:
+    def _open(self, request: Request, timeout: int | None = None) -> Any:
+        seconds = self._timeout if timeout is None else timeout
         try:
-            with urlopen(request, timeout=self._timeout) as resp:
+            with urlopen(request, timeout=seconds) as resp:
                 raw = json.loads(resp.read().decode("utf-8"))
         except HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
@@ -135,6 +170,8 @@ class TelegramApi:
             raise TelegramApiError("Telegram is unreachable") from exc
         except json.JSONDecodeError as exc:
             raise TelegramApiError("Telegram returned invalid JSON") from exc
+        except (TimeoutError, socket.timeout):
+            raise TelegramApiError("Telegram timed out") from None
         if not isinstance(raw, dict) or not raw.get("ok"):
             raise TelegramApiError("Telegram rejected the request")
         return raw.get("result")

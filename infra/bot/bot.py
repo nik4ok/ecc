@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from handlers import PreCheckoutAnswer, ShopContext, handle_update
+from handlers import ShopContext, handle_update
 from shop import EntitlementStore, plan_from_env
 from telegram_api import TelegramApi, TelegramApiError
 
@@ -57,36 +57,57 @@ def chat_id_of(update: dict) -> int | None:
         return None
 
 
+def consume_update(api: TelegramApi, ctx: ShopContext | None, update: dict, offset: int | None) -> int | None:
+    update_id = update.get("update_id")
+    next_offset = update_id + 1 if isinstance(update_id, int) else offset
+    chat_id = chat_id_of(update)
+    if chat_id is None:
+        return next_offset
+    started = time.monotonic()
+    try:
+        if ctx is None:
+            raise RuntimeError("shop context is missing")
+        actions = handle_update(update, ctx)
+        api.dispatch(chat_id, actions)
+        elapsed_ms = int((time.monotonic() - started) * 1000)
+        if elapsed_ms >= 800:
+            LOG.warning("slow reply chat_id=%s ms=%s", chat_id, elapsed_ms)
+        else:
+            LOG.info("replied chat_id=%s ms=%s", chat_id, elapsed_ms)
+    except TelegramApiError as err:
+        LOG.error("dispatch failed chat_id=%s: %s", chat_id, err)
+    except Exception:
+        LOG.exception("handler crashed chat_id=%s", chat_id)
+    return next_offset
+
+
 def run_forever(api: TelegramApi, ctx: ShopContext) -> None:
     offset: int | None = None
     LOG.info("NOVA bot started, payments=%s", ctx.payment_mode)
+    try:
+        api.delete_webhook()
+    except TelegramApiError as err:
+        LOG.warning("deleteWebhook skipped: %s", err)
+    try:
+        pending = api.get_updates(offset, timeout=0)
+        if pending:
+            last = pending[-1].get("update_id")
+            if isinstance(last, int):
+                offset = last + 1
+                LOG.info("skipped %s pending updates", len(pending))
+    except TelegramApiError as err:
+        LOG.warning("startup getUpdates skipped: %s", err)
     while True:
         try:
             updates = api.get_updates(offset)
         except TelegramApiError as err:
             LOG.error("getUpdates failed: %s", err)
+            if "409" in str(err):
+                LOG.error("another poller is using this bot token")
             time.sleep(3)
             continue
         for update in updates:
-            update_id = update.get("update_id")
-            chat_id = chat_id_of(update)
-            if chat_id is None:
-                if isinstance(update_id, int):
-                    offset = update_id + 1
-                continue
-            actions: list = []
-            try:
-                actions = handle_update(update, ctx)
-                api.dispatch(chat_id, actions)
-            except TelegramApiError as err:
-                LOG.error("dispatch failed chat_id=%s: %s", chat_id, err)
-                if any(isinstance(action, PreCheckoutAnswer) for action in actions):
-                    continue
-            except Exception:
-                LOG.exception("handler crashed chat_id=%s", chat_id)
-                continue
-            if isinstance(update_id, int):
-                offset = update_id + 1
+            offset = consume_update(api, ctx, update, offset)
 
 
 def main() -> int:

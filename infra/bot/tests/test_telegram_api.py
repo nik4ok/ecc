@@ -97,6 +97,41 @@ class TelegramApiTest(unittest.TestCase):
         self.assertIn(b"NOVA.apk", body)
         self.assertIn(b'name="chat_id"', body)
 
+    def test_get_updates_http_timeout_exceeds_long_poll(self) -> None:
+        from unittest.mock import patch
+
+        api = TelegramApi("123:test", timeout=15)
+        seen: dict[str, int] = {}
+
+        class _Resp:
+            def read(self) -> bytes:
+                return b'{"ok":true,"result":[]}'
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        def fake_urlopen(_request, timeout=None):
+            seen["timeout"] = timeout
+            return _Resp()
+
+        with patch("telegram_api.urlopen", fake_urlopen):
+            api.get_updates(None, timeout=25)
+        self.assertGreaterEqual(seen["timeout"], 35)
+
+    def test_telegram_host_forces_ipv4_family(self) -> None:
+        import socket
+
+        from telegram_api import telegram_addr_family
+
+        self.assertEqual(
+            telegram_addr_family("api.telegram.org", 0),
+            socket.AF_INET,
+        )
+        self.assertEqual(telegram_addr_family("example.com", 0), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
