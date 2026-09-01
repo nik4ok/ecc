@@ -70,6 +70,17 @@ class ApiTest(unittest.TestCase):
         self.assertIn("nova-test@device.local", emails)
         self.assertEqual(body["data"]["node"]["endpoint_host"], "89.19.217.190")
 
+    def test_overview_lists_nodes_with_status_and_peer_count(self) -> None:
+        body = self._json("GET", "/api/v1/overview")
+        nodes = {n["ipv4"]: n for n in body["data"]["nodes"]}
+        live = nodes["89.19.217.190"]
+        self.assertEqual(live["status"], "snapshot")
+        self.assertEqual(live["peer_count"], 2)
+        self.assertGreaterEqual(live["online_count"], 1)
+        blocked = nodes["92.51.46.12"]
+        self.assertEqual(blocked["status"], "inactive")
+        self.assertEqual(blocked["peer_count"], 0)
+
     def test_register_assigns_room_three(self) -> None:
         key = "qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqo="
         # 32 bytes of 0xAA
@@ -101,6 +112,8 @@ class ApiTest(unittest.TestCase):
         self.assertIn("Подключений", html)
         self.assertIn("Первое", html)
         self.assertIn("Всего", html)
+        self.assertIn("id=\"nodes\"", html)
+        self.assertIn("Пиры", html)
 
     def test_overview_users_include_usage_fields(self) -> None:
         body = self._json("GET", "/api/v1/overview")

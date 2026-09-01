@@ -117,6 +117,37 @@
       gap: 12px;
       margin-bottom: 16px;
     }
+    .nodes {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .node {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 16px 16px 14px;
+      display: grid;
+      gap: 6px;
+    }
+    .node .ip {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.03em;
+    }
+    .node .row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .node.active { border-color: rgba(52, 211, 153, 0.35); }
+    .node.down, .node.inactive { border-color: rgba(248, 113, 113, 0.28); }
+    .node.snapshot { border-color: rgba(245, 158, 11, 0.35); }
     .kpi {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -250,8 +281,8 @@
       justify-content: space-between;
       gap: 12px;
     }
-    @media (max-width: 900px) {
-      .kpis, .grid { grid-template-columns: 1fr; }
+      @media (max-width: 900px) {
+      .kpis, .grid, .nodes { grid-template-columns: 1fr; }
       header { flex-direction: column; }
       .meta { text-align: left; }
     }
@@ -266,13 +297,15 @@
           <div class="brand">NOVA</div>
         </div>
         <h1>Устройства</h1>
-        <p class="sub">Кто подключён к ноде, кто ждёт handshake, и форма для нового телефона. Приватный ключ на сервер не отправляется.</p>
+        <p class="sub">Кто подключён к ноде, жива ли дверь, и форма для нового телефона. Приватный ключ на сервер не отправляется.</p>
       </div>
       <div class="meta">
         <div id="node-line">Нода …</div>
         <div class="source" id="source-chip"><span class="dot"></span><span id="clock">—</span></div>
       </div>
     </header>
+
+    <section class="nodes" id="nodes" aria-label="Серверы"></section>
 
     <section class="kpis">
       <article class="kpi">
@@ -369,6 +402,48 @@
       return date.toLocaleString("ru-RU", { dateStyle: "short", timeStyle: "short" });
     }
 
+    function nodeStatusLabel(status) {
+      return {
+        active: "Активен",
+        snapshot: "Снимок",
+        down: "Неактивен",
+        inactive: "Неактивен",
+      }[status] || status;
+    }
+
+    function renderNodes(nodes) {
+      const root = $("nodes");
+      root.innerHTML = "";
+      (nodes || []).forEach((node) => {
+        const card = document.createElement("article");
+        card.className = "node " + (node.status || "");
+        const ip = document.createElement("div");
+        ip.className = "ip";
+        ip.textContent = node.ipv4 || "—";
+        const row = document.createElement("div");
+        row.className = "row";
+        const pill = document.createElement("span");
+        const status = node.status || "inactive";
+        pill.className = "pill " + (status === "active" ? "live" : status === "snapshot" ? "wait" : "off");
+        pill.textContent = nodeStatusLabel(status);
+        const peers = document.createElement("span");
+        const online = node.online_count != null ? node.online_count : 0;
+        peers.textContent = "Пиры: " + (node.peer_count ?? 0) + " · онлайн " + online;
+        row.appendChild(pill);
+        row.appendChild(peers);
+        card.appendChild(ip);
+        if (node.endpoint_port) {
+          const port = document.createElement("div");
+          port.style.fontSize = "12px";
+          port.style.color = "var(--muted)";
+          port.textContent = "UDP " + node.endpoint_port;
+          card.appendChild(port);
+        }
+        card.appendChild(row);
+        root.appendChild(card);
+      });
+    }
+
     async function loadOverview() {
       const res = await fetch("/api/v1/overview", { credentials: "same-origin" });
       if (res.status === 401) {
@@ -377,6 +452,7 @@
       const body = await res.json();
       if (!body.success) throw new Error(body.error || "overview failed");
       const data = body.data;
+      renderNodes(data.nodes || []);
       $("node-line").textContent = data.node.endpoint_host + ":" + data.node.endpoint_port + " · AWG3";
       const src = (data.tunnel && data.tunnel.source) || "unknown";
       const srcLabel = {

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import threading
 import time
@@ -16,12 +17,13 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
-from awg_status import merge_users_with_tunnel, parse_awg_show
+from awg_status import handshake_is_fresh, merge_users_with_tunnel, parse_awg_show
 from dashboard_auth import (
     credentials_match,
     dashboard_auth_required,
     is_protected_path,
 )
+from nodes import catalog_nodes, present_nodes
 from provision import make_provisioner
 from store import DuplicatePublicKeyError, InvalidPublicKeyError, UserStore
 from ticket import issue_ticket, load_node
@@ -71,6 +73,7 @@ class ControlPlane:
             ]
         )
         self.node = load_node(_servers_json())
+        self.catalog = catalog_nodes(_servers_json())
         self.provisioner = make_provisioner()
         self._usage_lock = threading.Lock()
 
@@ -114,12 +117,20 @@ class ControlPlane:
         online = sum(1 for u in active if u["online"])
         waiting = sum(1 for u in active if not u["online"])
         total_bytes = sum(int(u.get("total_bytes") or 0) for u in users)
+        online_peers = sum(1 for peer in peers if handshake_is_fresh(peer.get("latest_handshake")))
         return {
             "node": {
                 "server_id": self.node["server_id"],
                 "endpoint_host": self.node["endpoint_host"],
                 "endpoint_port": self.node["endpoint_port"],
             },
+            "nodes": present_nodes(
+                self.catalog,
+                live_server_id=self.node["server_id"],
+                tunnel_source=source,
+                peers=peers,
+                online_count=online_peers,
+            ),
             "tunnel": {"source": source},
             "kpis": {
                 "total": len(users),
@@ -149,6 +160,21 @@ def _read_awg_show() -> tuple[str, str]:
                 text=True,
                 timeout=4,
                 check=False,
+            )
+            if result.returncode == 0:
+                return result.stdout, "live"
+        except Exception:
+            return "", "empty"
+        return "", "empty"
+    if mode == "ssh":
+        try:
+            from edge_ssh import run_on_edge
+
+            container = os.environ.get("NOVA_EDGE_CONTAINER", "amnezia-awg2").strip() or "amnezia-awg2"
+            interface = os.environ.get("NOVA_EDGE_INTERFACE", "awg0").strip() or "awg0"
+            result = run_on_edge(
+                f"docker exec {shlex.quote(container)} awg show {shlex.quote(interface)}",
+                timeout=4,
             )
             if result.returncode == 0:
                 return result.stdout, "live"

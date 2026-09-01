@@ -1,7 +1,7 @@
-# NOVA control plane — касса клуба
+# NOVA control plane — касса
 
-Швейцар (`awg0`) по-прежнему пускает только тех, кто в книге.
-Этот сервис — касса: принимает публичный ключ телефона, выдаёт комнату `10.8.1.x` и шпаргалку с диалектом ноды.
+Швейцар на двери (`awg0`) пускает только тех, кто в книге.
+Этот сервис — касса в **офисе**: принимает публичный ключ телефона, выдаёт комнату `10.8.1.x` и шпаргалку с диалектом ноды. На дверь касса говорит «вписать пир» по SSH.
 
 Приватный ключ на кассу **не едет**.
 
@@ -13,35 +13,37 @@ python3 infra/controlplane/server.py
 
 Откройте [http://127.0.0.1:8090](http://127.0.0.1:8090).
 
-Режим по умолчанию `NOVA_PROVISION_MODE=local`: книга пишется в SQLite, Docker не трогается. Живой тоннель тестового телефона (`10.8.1.2`) не ломается.
+Режим по умолчанию `NOVA_PROVISION_MODE=local`: книга пишется в SQLite, дверь не трогается. Журнал швейцара берётся из `demo_awg_show.txt`.
 
-Журнал швейцара на ноутбуке берётся из `demo_awg_show.txt` (снимок вечера 31 августа: Amnezia и NOVA уже с `latest handshake`).
+## На офисе (боевой режим)
 
-## На самой ноде (боевой режим, живой журнал)
-
-Касса должна жить как обычная служба Linux — как nginx. Упал процесс — systemd поднимает снова. Перезагрузили VPS — касса стартует сама.
-
-На сервере, из клона репозитория:
+Касса живёт как служба Linux. Docker на офисе не нужен.
 
 ```bash
 bash infra/scripts/10_install_controlplane.sh
 ```
 
-Это кладёт файлы в `/opt/nova-controlplane`, включает `nova-controlplane.service`, открывает TCP `8090` и пишет логин/пароль дашборда в `/etc/nova-controlplane.env` (файл только на сервере, не в git).
+Скрипт кладёт файлы в `/opt/nova-controlplane`, пишет логин/пароль дашборда в `/etc/nova-controlplane.env` и ставит `NOVA_PROVISION_MODE=ssh`.
 
-Дашборд: `http://89.19.217.190:8090` — браузер спросит логин `nova` и пароль из того файла:
+Ключ на дверь (один раз):
+
+```bash
+ssh-keygen -t ed25519 -f /etc/nova-controlplane/edge_ed25519 -N ""
+ssh-copy-id -i /etc/nova-controlplane/edge_ed25519.pub root@89.19.217.190
+systemctl start nova-controlplane
+```
+
+Дашборд: `http://72.56.118.39:8090` — логин `nova`, пароль из того файла:
 
 ```bash
 sudo cat /etc/nova-controlplane.env
 ```
 
-`POST /api/v1/register` паролем дашборда не закрыт: телефон так получает комнату. Закрыты страница `/` и `GET /api/v1/overview`.
+`POST /api/v1/register` паролем не закрыт: телефон так получает комнату. Закрыты страница `/` и `GET /api/v1/overview`.
 
-Смотреть его нужно **не** с `127.0.0.1` на Маке. Мак показывает снимок. Живые байты — только касса на ноде, которая делает `docker exec amnezia-awg2 awg show awg0`.
+В дашборде карточки дверей: IP, активна / неактивна, сколько пиров.
 
-Если сайт с улицы России не открывается (как SSH 305), откройте ссылку **с телефона при включённой NOVA**.
-
-`POST /api/v1/register` в этом режиме вызывает `awg set` и дописывает пир в `awg0.conf`.
+Если кассу ставят **на самой двери** и крутится `amnezia-awg2`, установщик сам выберет `NOVA_PROVISION_MODE=docker`.
 
 ## API
 
@@ -57,7 +59,7 @@ sudo cat /etc/nova-controlplane.env
 
 Ответ — билет: endpoint, server public key, PSK, Jc/S/H/HPK/trailers, `client_address`. Без client private key.
 
-`GET /api/v1/overview` — книга + сшивка с `awg show`.
+`GET /api/v1/overview` — книга, сшивка с `awg show`, список нод (`nodes`: IP, status, peer_count).
 
 Комнаты `10.8.1.1` (Amnezia) и `10.8.1.2` (тестовая NOVA) зарезервированы.
 

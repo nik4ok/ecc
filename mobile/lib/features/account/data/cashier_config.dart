@@ -1,4 +1,4 @@
-/// Cashier HTTP API on the Amsterdam node.
+/// Cashier HTTP API on the office VPS. First launch hits this before the tunnel.
 class CashierConfig {
-  static const String baseUrl = 'http://89.19.217.190:8090';
+  static const String baseUrl = 'http://72.56.118.39:8090';
 }
