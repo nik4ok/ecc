@@ -12,6 +12,11 @@ class RegistrationApi {
       : baseUri = Uri.parse(baseUrl),
         _client = client ?? http.Client();
 
+  String get cashierUrl {
+    final text = baseUri.toString();
+    return text.endsWith('/') ? text.substring(0, text.length - 1) : text;
+  }
+
   Future<AccessTicket> register({
     required String email,
     required String displayName,

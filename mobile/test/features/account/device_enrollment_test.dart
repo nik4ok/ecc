@@ -80,7 +80,10 @@ void main() {
     });
     final vault = MemoryEnrollmentVault()
       ..privateKey = pair.privateKey
-      ..ticketJson = jsonEncode(ticketJson(address: '10.8.1.4/32'));
+      ..ticketJson = jsonEncode({
+        ...ticketJson(address: '10.8.1.4/32'),
+        'cashier_base_url': 'http://127.0.0.1:8090',
+      });
     final enrollment = DeviceEnrollment(
       api: RegistrationApi(baseUrl: 'http://127.0.0.1:8090', client: client),
       vault: vault,
@@ -107,5 +110,52 @@ void main() {
     final profile = await enrollment.ensureProfile();
 
     expect(profile, DefaultNodes.netherlandsAmneziaWg);
+  });
+
+  test('legacy ticket without cashier url re-registers at the new office', () async {
+    var calls = 0;
+    final client = MockClient((request) async {
+      calls += 1;
+      return http.Response.bytes(
+        utf8.encode(jsonEncode({'success': true, 'data': ticketJson(address: '10.8.1.5/32'), 'error': null})),
+        201,
+        headers: {'content-type': 'application/json; charset=utf-8'},
+      );
+    });
+    final vault = MemoryEnrollmentVault()
+      ..privateKey = pair.privateKey
+      ..ticketJson = jsonEncode(ticketJson(address: '10.8.1.2/32'));
+    final enrollment = DeviceEnrollment(
+      api: RegistrationApi(baseUrl: 'http://72.56.118.39:8090', client: client),
+      vault: vault,
+      generateKeys: () async => throw StateError('keys already exist'),
+    );
+
+    final profile = await enrollment.ensureProfile();
+
+    expect(calls, 1);
+    expect(profile.clientAddress, '10.8.1.5/32');
+    expect(profile.clientPrivateKey, pair.privateKey);
+    expect(vault.ticketJson, contains('cashier_base_url'));
+    expect(vault.ticketJson, contains('72.56.118.39'));
+  });
+
+  test('office cashier down keeps the old door ticket', () async {
+    final client = MockClient((request) async {
+      throw Exception('office unreachable');
+    });
+    final vault = MemoryEnrollmentVault()
+      ..privateKey = pair.privateKey
+      ..ticketJson = jsonEncode(ticketJson(address: '10.8.1.2/32'));
+    final enrollment = DeviceEnrollment(
+      api: RegistrationApi(baseUrl: 'http://72.56.118.39:8090', client: client),
+      vault: vault,
+      generateKeys: () async => throw StateError('keys already exist'),
+    );
+
+    final profile = await enrollment.ensureProfile();
+
+    expect(profile.clientAddress, '10.8.1.2/32');
+    expect(profile, isNot(DefaultNodes.netherlandsAmneziaWg));
   });
 }

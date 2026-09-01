@@ -43,13 +43,9 @@ class DeviceEnrollment implements Enrollment {
     var privateKey = await vault.readPrivateKey();
     final savedTicket = await vault.readTicketJson();
     if (privateKey != null &&
-        savedTicket != null &&
-        savedTicket.isNotEmpty &&
-        WgKeys.isValid(privateKey)) {
-      return profileFromTicket(
-        ticket: AccessTicket.fromJson(jsonDecode(savedTicket) as Map<String, dynamic>),
-        clientPrivateKey: privateKey,
-      );
+        WgKeys.isValid(privateKey) &&
+        _ticketIsForThisCashier(savedTicket)) {
+      return _profileFromSaved(savedTicket!, privateKey);
     }
 
     late final String publicKey;
@@ -62,18 +58,50 @@ class DeviceEnrollment implements Enrollment {
       publicKey = await WgKeys.publicKeyFromPrivate(privateKey);
     }
 
-    final ticket = await api
-        .register(
-          email: _emailFor(publicKey),
-          displayName: displayName,
-          publicKey: publicKey,
-        )
-        .timeout(timeout);
-    await vault.save(
-      privateKey: privateKey,
-      ticketJson: jsonEncode(ticket.toJson()),
+    try {
+      final ticket = await api
+          .register(
+            email: _emailFor(publicKey),
+            displayName: displayName,
+            publicKey: publicKey,
+          )
+          .timeout(timeout);
+      await vault.save(
+        privateKey: privateKey,
+        ticketJson: jsonEncode({
+          ...ticket.toJson(),
+          'cashier_base_url': api.cashierUrl,
+        }),
+      );
+      return profileFromTicket(ticket: ticket, clientPrivateKey: privateKey);
+    } on Exception {
+      if (privateKey != null &&
+          WgKeys.isValid(privateKey) &&
+          savedTicket != null &&
+          savedTicket.isNotEmpty) {
+        return _profileFromSaved(savedTicket, privateKey);
+      }
+      rethrow;
+    }
+  }
+
+  bool _ticketIsForThisCashier(String? savedTicket) {
+    if (savedTicket == null || savedTicket.isEmpty) {
+      return false;
+    }
+    final decoded = jsonDecode(savedTicket);
+    if (decoded is! Map) {
+      return false;
+    }
+    final savedUrl = decoded['cashier_base_url'];
+    return savedUrl is String && savedUrl == api.cashierUrl;
+  }
+
+  VpnProfile _profileFromSaved(String savedTicket, String privateKey) {
+    return profileFromTicket(
+      ticket: AccessTicket.fromJson(jsonDecode(savedTicket) as Map<String, dynamic>),
+      clientPrivateKey: privateKey,
     );
-    return profileFromTicket(ticket: ticket, clientPrivateKey: privateKey);
   }
 
   String _emailFor(String publicKey) {
