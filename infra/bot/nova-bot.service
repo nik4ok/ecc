@@ -1,0 +1,24 @@
+[Unit]
+Description=NOVA Telegram shop bot (pay, APK, status)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/nova-bot
+ExecStart=/usr/bin/python3 /opt/nova-bot/bot.py
+Restart=always
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+Environment=NOVA_BOT_DB=/var/lib/nova-bot/shop.db
+Environment=NOVA_APK_PATH=/var/lib/nova-bot/NOVA.apk
+EnvironmentFile=-/etc/nova-bot.env
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/nova-bot
+
+[Install]
+WantedBy=multi-user.target

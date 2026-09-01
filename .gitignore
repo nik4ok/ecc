@@ -25,6 +25,12 @@ infra/controlplane/*.db
 infra/controlplane/*.db-shm
 infra/controlplane/*.db-wal
 
+# Telegram shop local book
+infra/bot/shop.db
+infra/bot/*.db
+infra/bot/*.db-shm
+infra/bot/*.db-wal
+
 # Flutter & Dart artifacts
 .dart_tool/
 .flutter-plugins
