@@ -25,9 +25,9 @@ def configure_logging() -> None:
 def load_context() -> ShopContext:
     db_path = os.environ.get("NOVA_BOT_DB", str(Path(__file__).resolve().parent / "shop.db"))
     apk_raw = os.environ.get("NOVA_APK_PATH", "").strip()
-    mode = os.environ.get("NOVA_PAYMENTS", "stars").strip().lower() or "stars"
-    if mode not in {"stars", "dev"}:
-        raise SystemExit("NOVA_PAYMENTS must be 'stars' or 'dev'")
+    mode = os.environ.get("NOVA_PAYMENTS", "off").strip().lower() or "off"
+    if mode not in {"off", "stars", "dev"}:
+        raise SystemExit("NOVA_PAYMENTS must be 'off', 'stars' or 'dev'")
     if mode == "dev" and os.environ.get("NOVA_DEV_PAY", "") != "1":
         raise SystemExit("NOVA_PAYMENTS=dev requires NOVA_DEV_PAY=1")
     apk_path = Path(apk_raw) if apk_raw else None

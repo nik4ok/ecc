@@ -24,7 +24,7 @@ class TelegramApiTest(unittest.TestCase):
     def test_dispatch_routes_actions(self) -> None:
         api = TelegramApi("123:test")
         seen: list[tuple] = []
-        api.send_message = lambda chat_id, text, keyboard=True: seen.append(
+        api.send_message = lambda chat_id, text, keyboard=True, markup=None: seen.append(
             ("message", chat_id, text, keyboard)
         )
         api.send_invoice = lambda chat_id, invoice: seen.append(("invoice", chat_id, invoice.payload))

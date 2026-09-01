@@ -44,6 +44,19 @@ class BotMainTest(unittest.TestCase):
             os.unlink(tmp.name)
             os.environ.pop("NOVA_BOT_DB", None)
 
+    def test_default_payments_is_off(self) -> None:
+        os.environ.pop("NOVA_PAYMENTS", None)
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        tmp.close()
+        os.environ["NOVA_BOT_DB"] = tmp.name
+        try:
+            ctx = bot_mod.load_context()
+            self.assertEqual(ctx.payment_mode, "off")
+            ctx.store.close()
+        finally:
+            os.unlink(tmp.name)
+            os.environ.pop("NOVA_BOT_DB", None)
+
     def test_dev_payments_require_explicit_flag(self) -> None:
         os.environ["NOVA_PAYMENTS"] = "dev"
         os.environ.pop("NOVA_DEV_PAY", None)

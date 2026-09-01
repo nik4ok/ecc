@@ -14,7 +14,10 @@ if ROOT not in sys.path:
 
 from shop import (  # noqa: E402
     MONTH_PLAN,
+    OS_ANDROID,
+    OS_IOS,
     EntitlementStore,
+    InvalidOsError,
     InvalidTelegramIdError,
     make_invoice_payload,
     parse_invoice_payload,
@@ -90,6 +93,17 @@ class EntitlementStoreTest(unittest.TestCase):
         self.store.apply_payment(42, 30, NOW, "A", "chg-a")
         row = self.store.apply_payment(42, 30, NOW, "A", "chg-b")
         self.assertEqual(row["paid_until"], (NOW + timedelta(days=60)).isoformat())
+
+    def test_set_os_roundtrip(self) -> None:
+        row = self.store.set_os(42, OS_ANDROID, now=NOW, display_name="Никита")
+        self.assertEqual(row["os"], OS_ANDROID)
+        self.assertEqual(self.store.get_profile(42)["os"], OS_ANDROID)
+        switched = self.store.set_os(42, OS_IOS, now=NOW, display_name="Никита")
+        self.assertEqual(switched["os"], OS_IOS)
+
+    def test_invalid_os_rejected(self) -> None:
+        with self.assertRaises(InvalidOsError):
+            self.store.set_os(42, "windows", now=NOW)
 
 
 class InvoicePayloadTest(unittest.TestCase):

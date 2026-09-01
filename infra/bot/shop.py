@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import NamedTuple
@@ -10,6 +11,15 @@ from typing import NamedTuple
 
 class InvalidTelegramIdError(ValueError):
     pass
+
+
+class InvalidOsError(ValueError):
+    pass
+
+
+OS_ANDROID = "android"
+OS_IOS = "ios"
+_ALLOWED_OS = {OS_ANDROID, OS_IOS}
 
 
 @dataclass(frozen=True)
@@ -139,7 +149,41 @@ class EntitlementStore:
             )
             """
         )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS profiles (
+                telegram_id INTEGER PRIMARY KEY,
+                display_name TEXT NOT NULL DEFAULT '',
+                os TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """
+        )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS reports (
+                id TEXT PRIMARY KEY,
+                telegram_id INTEGER NOT NULL,
+                display_name TEXT NOT NULL DEFAULT '',
+                os TEXT,
+                body TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        self._migrate_profile_columns()
         self._conn.commit()
+
+    def _migrate_profile_columns(self) -> None:
+        existing = {
+            row["name"]
+            for row in self._conn.execute("PRAGMA table_info(profiles)").fetchall()
+        }
+        if "awaiting_report" not in existing:
+            self._conn.execute(
+                "ALTER TABLE profiles ADD COLUMN awaiting_report INTEGER NOT NULL DEFAULT 0"
+            )
 
     def has_access(self, telegram_id: int, now: datetime) -> bool:
         require_telegram_id(telegram_id)
@@ -257,6 +301,173 @@ class EntitlementStore:
                 (label, until.isoformat(), now.isoformat(), telegram_id),
             )
         return self._get_unlocked(telegram_id)
+
+    def get_profile(self, telegram_id: int) -> dict | None:
+        require_telegram_id(telegram_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM profiles WHERE telegram_id = ?",
+                (telegram_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def set_os(
+        self,
+        telegram_id: int,
+        os_name: str,
+        now: datetime,
+        display_name: str = "",
+    ) -> dict:
+        require_telegram_id(telegram_id)
+        os_key = (os_name or "").strip().lower()
+        if os_key not in _ALLOWED_OS:
+            raise InvalidOsError("os must be android or ios")
+        name = (display_name or "").strip()
+        stamp = now.isoformat()
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT * FROM profiles WHERE telegram_id = ?",
+                (telegram_id,),
+            ).fetchone()
+            if existing is None:
+                self._conn.execute(
+                    """
+                    INSERT INTO profiles
+                        (telegram_id, display_name, os, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (telegram_id, name, os_key, stamp, stamp),
+                )
+            else:
+                label = name or existing["display_name"]
+                self._conn.execute(
+                    """
+                    UPDATE profiles
+                    SET display_name = ?, os = ?, awaiting_report = 0, updated_at = ?
+                    WHERE telegram_id = ?
+                    """,
+                    (label, os_key, stamp, telegram_id),
+                )
+            self._conn.commit()
+        row = self.get_profile(telegram_id)
+        if row is None:
+            raise RuntimeError("profile did not persist")
+        return row
+
+    def is_awaiting_report(self, telegram_id: int) -> bool:
+        profile = self.get_profile(telegram_id)
+        if profile is None:
+            return False
+        return bool(int(profile.get("awaiting_report") or 0))
+
+    def set_awaiting_report(
+        self,
+        telegram_id: int,
+        waiting: bool,
+        now: datetime,
+        display_name: str = "",
+    ) -> None:
+        require_telegram_id(telegram_id)
+        name = (display_name or "").strip()
+        stamp = now.isoformat()
+        flag = 1 if waiting else 0
+        with self._lock:
+            existing = self._conn.execute(
+                "SELECT * FROM profiles WHERE telegram_id = ?",
+                (telegram_id,),
+            ).fetchone()
+            if existing is None:
+                self._conn.execute(
+                    """
+                    INSERT INTO profiles
+                        (telegram_id, display_name, os, awaiting_report, created_at, updated_at)
+                    VALUES (?, ?, NULL, ?, ?, ?)
+                    """,
+                    (telegram_id, name, flag, stamp, stamp),
+                )
+            else:
+                label = name or existing["display_name"]
+                self._conn.execute(
+                    """
+                    UPDATE profiles
+                    SET display_name = ?, awaiting_report = ?, updated_at = ?
+                    WHERE telegram_id = ?
+                    """,
+                    (label, flag, stamp, telegram_id),
+                )
+            self._conn.commit()
+
+    def add_report(
+        self,
+        telegram_id: int,
+        body: str,
+        now: datetime,
+        display_name: str = "",
+        os_name: str | None = None,
+    ) -> dict:
+        require_telegram_id(telegram_id)
+        text = (body or "").strip()
+        if len(text) < 8:
+            raise ValueError("report is too short")
+        if len(text) > 2000:
+            text = text[:2000]
+        profile = self.get_profile(telegram_id)
+        os_value = os_name or (profile or {}).get("os")
+        report_id = str(uuid.uuid4())
+        name = (display_name or "").strip()
+        if not name and profile:
+            name = str(profile.get("display_name") or "")
+        with self._lock:
+            self._conn.execute(
+                """
+                INSERT INTO reports (id, telegram_id, display_name, os, body, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (report_id, telegram_id, name, os_value, text, now.isoformat()),
+            )
+            self._conn.execute(
+                """
+                UPDATE profiles SET awaiting_report = 0, updated_at = ?
+                WHERE telegram_id = ?
+                """,
+                (now.isoformat(), telegram_id),
+            )
+            self._conn.commit()
+        return {
+            "id": report_id,
+            "telegram_id": telegram_id,
+            "display_name": name,
+            "os": os_value,
+            "body": text,
+            "created_at": now.isoformat(),
+        }
+
+    def list_reports(self, telegram_id: int) -> list[dict]:
+        require_telegram_id(telegram_id)
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM reports
+                WHERE telegram_id = ?
+                ORDER BY created_at ASC
+                """,
+                (telegram_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def count_reports_since(self, telegram_id: int, since: datetime) -> int:
+        require_telegram_id(telegram_id)
+        with self._lock:
+            row = self._conn.execute(
+                """
+                SELECT COUNT(*) AS n FROM reports
+                WHERE telegram_id = ? AND created_at >= ?
+                """,
+                (telegram_id, since.isoformat()),
+            ).fetchone()
+        return int(row["n"] if row else 0)
 
     def close(self) -> None:
         self._conn.close()

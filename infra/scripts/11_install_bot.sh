@@ -12,14 +12,14 @@ ENV_FILE=/etc/nova-bot.env
 
 mkdir -p "$DEST" "$DATADIR"
 chmod 700 "$DATADIR"
-cp -a "$SRC/shop.py" "$SRC/handlers.py" "$SRC/telegram_api.py" "$SRC/bot.py" "$DEST/"
+cp -a "$SRC/shop.py" "$SRC/handlers.py" "$SRC/telegram_api.py" "$SRC/bot.py" "$SRC/messages.py" "$DEST/"
 install -m 644 "$SRC/nova-bot.service" /etc/systemd/system/nova-bot.service
 
 if [[ ! -f "$ENV_FILE" ]]; then
   umask 077
   cat > "$ENV_FILE" <<'EOF'
 NOVA_BOT_TOKEN=
-NOVA_PAYMENTS=stars
+NOVA_PAYMENTS=off
 NOVA_STARS_PRICE=250
 EOF
   chmod 600 "$ENV_FILE"

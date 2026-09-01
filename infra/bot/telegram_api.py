@@ -39,9 +39,17 @@ class TelegramApi:
             return []
         return [item for item in data if isinstance(item, dict)]
 
-    def send_message(self, chat_id: int, text: str, keyboard: bool = True) -> None:
+    def send_message(
+        self,
+        chat_id: int,
+        text: str,
+        keyboard: bool = True,
+        markup: dict[str, Any] | None = None,
+    ) -> None:
         body: dict[str, Any] = {"chat_id": chat_id, "text": text}
-        if keyboard:
+        if markup is not None:
+            body["reply_markup"] = markup
+        elif keyboard:
             body["reply_markup"] = reply_keyboard()
         self._call("sendMessage", body)
 
@@ -92,7 +100,12 @@ class TelegramApi:
     def dispatch(self, chat_id: int, actions: list[object]) -> None:
         for action in actions:
             if isinstance(action, Reply):
-                self.send_message(chat_id, action.text, keyboard=action.keyboard)
+                self.send_message(
+                    chat_id,
+                    action.text,
+                    keyboard=action.keyboard,
+                    markup=action.markup,
+                )
             elif isinstance(action, Invoice):
                 self.send_invoice(chat_id, action)
             elif isinstance(action, Document):
