@@ -26,6 +26,17 @@ cp -a "$SRC/demo_awg_show.txt" "$DEST/"
 cp -a "$ROOT/infra/servers.json" "$DEST/servers.json"
 install -m 644 "$SRC/nova-controlplane.service" /etc/systemd/system/nova-controlplane.service
 
+ENV_FILE=/etc/nova-controlplane.env
+if [[ ! -f "$ENV_FILE" ]]; then
+  umask 077
+  password="$(openssl rand -base64 18 | tr -d '/+=' | head -c 20)"
+  printf 'NOVA_DASHBOARD_USER=nova\nNOVA_DASHBOARD_PASSWORD=%s\n' "$password" > "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  echo "Пароль дашборда записан в $ENV_FILE (логин nova). Посмотреть: cat $ENV_FILE"
+else
+  echo "Оставляю существующий $ENV_FILE"
+fi
+
 if command -v ufw >/dev/null 2>&1; then
   ufw allow 8090/tcp comment 'NOVA cashier dashboard' >/dev/null 2>&1 || true
 fi

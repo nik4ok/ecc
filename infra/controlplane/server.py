@@ -17,6 +17,11 @@ from typing import Any
 from urllib.parse import urlparse
 
 from awg_status import merge_users_with_tunnel, parse_awg_show
+from dashboard_auth import (
+    credentials_match,
+    dashboard_auth_required,
+    is_protected_path,
+)
 from provision import make_provisioner
 from store import DuplicatePublicKeyError, InvalidPublicKeyError, UserStore
 from ticket import issue_ticket, load_node
@@ -165,12 +170,31 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def _unauthorized(self) -> None:
+        body = _envelope(False, error="dashboard login required")
+        self.send_response(401)
+        self.send_header("WWW-Authenticate", 'Basic realm="NOVA"')
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _dashboard_allowed(self, path: str) -> bool:
+        if not is_protected_path(path):
+            return True
+        if not dashboard_auth_required():
+            return True
+        return credentials_match(self.headers.get("Authorization"))
+
     def do_OPTIONS(self) -> None:
         self.send_response(204)
         self.end_headers()
 
     def do_GET(self) -> None:
         path = urlparse(self.path).path
+        if is_protected_path(path) and not self._dashboard_allowed(path):
+            self._unauthorized()
+            return
         if path in {"/", "/index.html"}:
             body = DASHBOARD.encode("utf-8")
             self.send_response(200)
@@ -229,6 +253,10 @@ def main() -> None:
     server = ThreadingHTTPServer((BIND_HOST, PORT), Handler)
     print(f"NOVA control plane http://{BIND_HOST}:{PORT}", flush=True)
     print(f"db={DB_PATH} provision={os.environ.get('NOVA_PROVISION_MODE', 'local')}", flush=True)
+    if dashboard_auth_required():
+        print("dashboard: basic auth on (user from NOVA_DASHBOARD_USER)", flush=True)
+    else:
+        print("dashboard: open (localhost, no NOVA_DASHBOARD_PASSWORD)", flush=True)
     server.serve_forever()
 
 

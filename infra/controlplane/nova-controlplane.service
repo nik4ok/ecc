@@ -17,6 +17,7 @@ Environment=NOVA_BIND=0.0.0.0
 Environment=NOVA_CONTROL_PORT=8090
 Environment=NOVA_CONTROL_DB=/var/lib/nova-controlplane/nova_users.db
 Environment=NOVA_SERVERS_JSON=/opt/nova-controlplane/servers.json
+EnvironmentFile=-/etc/nova-controlplane.env
 
 [Install]
 WantedBy=multi-user.target

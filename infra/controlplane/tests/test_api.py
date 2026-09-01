@@ -22,6 +22,9 @@ os.environ.setdefault("NOVA_PROVISION_MODE", "local")
 class ApiTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
+        os.environ.setdefault("NOVA_PROVISION_MODE", "local")
+        os.environ["NOVA_BIND"] = "127.0.0.1"
+        os.environ.pop("NOVA_DASHBOARD_PASSWORD", None)
         tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
         tmp.close()
         cls._db = tmp.name

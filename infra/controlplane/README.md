@@ -27,9 +27,15 @@ python3 infra/controlplane/server.py
 bash infra/scripts/10_install_controlplane.sh
 ```
 
-Это кладёт файлы в `/opt/nova-controlplane`, включает `nova-controlplane.service`, открывает TCP `8090`.
+Это кладёт файлы в `/opt/nova-controlplane`, включает `nova-controlplane.service`, открывает TCP `8090` и пишет логин/пароль дашборда в `/etc/nova-controlplane.env` (файл только на сервере, не в git).
 
-Дашборд: `http://89.19.217.190:8090`
+Дашборд: `http://89.19.217.190:8090` — браузер спросит логин `nova` и пароль из того файла:
+
+```bash
+sudo cat /etc/nova-controlplane.env
+```
+
+`POST /api/v1/register` паролем дашборда не закрыт: телефон так получает комнату. Закрыты страница `/` и `GET /api/v1/overview`.
 
 Смотреть его нужно **не** с `127.0.0.1` на Маке. Мак показывает снимок. Живые байты — только касса на ноде, которая делает `docker exec amnezia-awg2 awg show awg0`.
 

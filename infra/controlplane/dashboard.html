@@ -370,7 +370,10 @@
     }
 
     async function loadOverview() {
-      const res = await fetch("/api/v1/overview");
+      const res = await fetch("/api/v1/overview", { credentials: "same-origin" });
+      if (res.status === 401) {
+        throw new Error("нужен пароль дашборда");
+      }
       const body = await res.json();
       if (!body.success) throw new Error(body.error || "overview failed");
       const data = body.data;
