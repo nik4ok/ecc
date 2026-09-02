@@ -14,11 +14,16 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from handlers import (  # noqa: E402
+    BUTTON_ADMIN,
+    BUTTON_ADMIN_CLIENTS,
+    BUTTON_ADMIN_HOUSE,
+    BUTTON_ADMIN_STATS,
     BUTTON_ANDROID,
     BUTTON_DOWNLOAD,
     BUTTON_IOS,
     BUTTON_PAY,
     BUTTON_REPORT,
+    BUTTON_SHOP,
     BUTTON_STATUS,
     Document,
     Invoice,
@@ -37,13 +42,20 @@ def _update(
     text: str | None = None,
     user_id: int = 1001,
     name: str = "Гость",
+    username: str | None = None,
+    language_code: str | None = None,
     successful_payment: dict | None = None,
     pre_checkout: dict | None = None,
 ) -> dict:
     if pre_checkout is not None:
         return {"pre_checkout_query": pre_checkout}
+    from_user: dict = {"id": user_id, "first_name": name}
+    if username is not None:
+        from_user["username"] = username
+    if language_code is not None:
+        from_user["language_code"] = language_code
     message: dict = {
-        "from": {"id": user_id, "first_name": name},
+        "from": from_user,
         "chat": {"id": user_id, "type": "private"},
     }
     if text is not None:
@@ -270,6 +282,28 @@ class HandlerTest(unittest.TestCase):
         self.assertTrue(self.store.has_access(1001, now=NOW))
         self.assertTrue(any(isinstance(a, Document) for a in actions))
 
+    def test_payment_survives_tracking_failure(self) -> None:
+        self._android()
+        pay = self._handle(_update(BUTTON_PAY))
+        payload = next(a for a in pay if isinstance(a, Invoice)).payload
+
+        def boom(*_args, **_kwargs):
+            raise RuntimeError("disk full")
+
+        self.store.remember_visit = boom  # type: ignore[method-assign]
+        actions = self._handle(
+            _update(
+                successful_payment={
+                    "currency": "XTR",
+                    "total_amount": MONTH_PLAN.stars,
+                    "invoice_payload": payload,
+                    "telegram_payment_charge_id": "chg-track-fail",
+                }
+            )
+        )
+        self.assertTrue(self.store.has_access(1001, now=NOW))
+        self.assertTrue(any(isinstance(a, Document) for a in actions))
+
     def test_payment_replay_does_not_add_extra_month(self) -> None:
         self._android()
         pay = self._handle(_update(BUTTON_PAY))
@@ -374,6 +408,121 @@ class WaitlistJourneyTest(unittest.TestCase):
         self._handle(BUTTON_ANDROID)
         self.assertEqual(self.store.list_reports(1001), [])
         self.assertEqual(self.store.get_profile(1001)["os"], "android")
+
+    def test_start_remembers_visitor(self) -> None:
+        handle_update(
+            _update("/start", name="Никита", username="nick", language_code="ru"),
+            self.ctx,
+        )
+        row = self.store.get_visitor(1001)
+        self.assertEqual(row["username"], "nick")
+        self.assertEqual(row["language_code"], "ru")
+        self.assertEqual(self.store.list_events(1001)[0]["action"], "start")
+
+
+class AdminJourneyTest(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        tmp.close()
+        self._db = tmp.name
+        self.store = EntitlementStore(self._db)
+        from houses import HouseSnapshot, HouseStatus, VpnDevice
+
+        self.snapshot = HouseSnapshot(
+            office=HouseStatus(name="Офис", kind="office", ok=True, detail="касса отвечает"),
+            doors=(
+                HouseStatus(
+                    name="Дверь Амстердам",
+                    kind="door",
+                    ok=True,
+                    detail="active, пиров 4, онлайн 2",
+                ),
+            ),
+            vpn_total=4,
+            vpn_online=2,
+            vpn_devices=(VpnDevice(label="10.8.1.5", online=True),),
+        )
+        self.ctx = ShopContext(
+            store=self.store,
+            plan=MONTH_PLAN,
+            apk_path=None,
+            payment_mode="off",
+            now=NOW,
+            admin_ids=frozenset({1001}),
+            houses=lambda: self.snapshot,
+        )
+
+    def tearDown(self) -> None:
+        self.store.close()
+        os.unlink(self._db)
+
+    def _handle(self, text: str, user_id: int = 1001, name: str = "Никита") -> list:
+        return handle_update(_update(text, user_id=user_id, name=name), self.ctx)
+
+    def test_stranger_admin_looks_like_unknown(self) -> None:
+        actions = self._handle("/admin", user_id=2002)
+        self.assertIn("Нажмите кнопку", actions[0].text)
+        texts = [cell["text"] for row in actions[0].markup["keyboard"] for cell in row]
+        self.assertNotIn(BUTTON_ADMIN, texts)
+
+    def test_admin_start_shows_cabinet_button(self) -> None:
+        actions = self._handle("/start")
+        texts = [cell["text"] for row in actions[0].markup["keyboard"] for cell in row]
+        self.assertIn(BUTTON_ADMIN, texts)
+
+    def test_guest_start_hides_cabinet(self) -> None:
+        guest = ShopContext(
+            store=self.store,
+            plan=MONTH_PLAN,
+            payment_mode="off",
+            now=NOW,
+            admin_ids=frozenset({1001}),
+        )
+        actions = handle_update(_update("/start", user_id=2002), guest)
+        texts = [cell["text"] for row in actions[0].markup["keyboard"] for cell in row]
+        self.assertNotIn(BUTTON_ADMIN, texts)
+
+    def test_admin_menu_and_stats(self) -> None:
+        self._handle("/start", user_id=7, name="Гость")
+        self._handle(BUTTON_ANDROID, user_id=7, name="Гость")
+        home = self._handle("/admin")
+        self.assertIn("Кабинет", home[0].text)
+        self.assertIn("1001", home[0].text)
+        texts = [cell["text"] for row in home[0].markup["keyboard"] for cell in row]
+        self.assertEqual(
+            texts,
+            [BUTTON_ADMIN_STATS, BUTTON_ADMIN_CLIENTS, BUTTON_ADMIN_HOUSE, BUTTON_SHOP],
+        )
+        stats = self._handle(BUTTON_ADMIN_STATS)
+        self.assertIn("витрин", stats[0].text.lower())
+        self.assertIn("Android", stats[0].text)
+
+    def test_admin_clients_lists_bot_visitors(self) -> None:
+        self._handle("/start", user_id=7, name="Гость")
+        self._handle(BUTTON_ANDROID, user_id=7, name="Гость")
+        self._handle("/admin")
+        actions = self._handle(BUTTON_ADMIN_CLIENTS)
+        self.assertIn("Гость", actions[0].text)
+        self.assertIn("10.8.1.5", actions[0].text)
+
+    def test_admin_house_shows_office_and_door(self) -> None:
+        self._handle("/admin")
+        actions = self._handle(BUTTON_ADMIN_HOUSE)
+        self.assertIn("Офис", actions[0].text)
+        self.assertIn("касса отвечает", actions[0].text)
+        self.assertIn("Дверь", actions[0].text)
+
+    def test_shop_button_returns_storefront(self) -> None:
+        self._handle("/admin")
+        actions = self._handle(BUTTON_SHOP)
+        self.assertIn("С какого телефона", actions[0].text)
+        texts = [cell["text"] for row in actions[0].markup["keyboard"] for cell in row]
+        self.assertIn(BUTTON_ANDROID, texts)
+        self.assertIn(BUTTON_ADMIN, texts)
+
+    def test_stranger_cannot_open_stats_by_button_text(self) -> None:
+        actions = self._handle(BUTTON_ADMIN_STATS, user_id=2002)
+        self.assertIn("Нажмите кнопку", actions[0].text)
 
 
 if __name__ == "__main__":

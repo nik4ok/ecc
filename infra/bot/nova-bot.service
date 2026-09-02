@@ -13,6 +13,7 @@ RestartSec=3
 Environment=PYTHONUNBUFFERED=1
 Environment=NOVA_BOT_DB=/var/lib/nova-bot/shop.db
 Environment=NOVA_APK_PATH=/var/lib/nova-bot/NOVA.apk
+EnvironmentFile=-/etc/nova-controlplane.env
 EnvironmentFile=-/etc/nova-bot.env
 NoNewPrivileges=true
 PrivateTmp=true

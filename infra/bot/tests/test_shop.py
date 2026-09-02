@@ -20,6 +20,7 @@ from shop import (  # noqa: E402
     InvalidOsError,
     InvalidTelegramIdError,
     make_invoice_payload,
+    parse_admin_ids,
     parse_invoice_payload,
 )
 
@@ -105,6 +106,69 @@ class EntitlementStoreTest(unittest.TestCase):
         with self.assertRaises(InvalidOsError):
             self.store.set_os(42, "windows", now=NOW)
 
+    def test_remember_visit_creates_visitor_and_event(self) -> None:
+        self.store.remember_visit(
+            42,
+            now=NOW,
+            display_name="Никита",
+            username="nick",
+            language_code="ru",
+            action="start",
+        )
+        row = self.store.get_visitor(42)
+        self.assertEqual(row["username"], "nick")
+        self.assertEqual(row["display_name"], "Никита")
+        self.assertEqual(row["language_code"], "ru")
+        self.assertEqual(row["visit_count"], 1)
+        self.assertEqual(row["first_seen"], NOW.isoformat())
+        events = self.store.list_events(42)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["action"], "start")
+
+    def test_second_visit_bumps_count_keeps_first_seen(self) -> None:
+        self.store.remember_visit(42, now=NOW, display_name="Никита", action="start")
+        later = NOW + timedelta(hours=3)
+        self.store.remember_visit(
+            42,
+            now=later,
+            display_name="Никита",
+            username="nick",
+            action="android",
+            os_name=OS_ANDROID,
+        )
+        row = self.store.get_visitor(42)
+        self.assertEqual(row["visit_count"], 2)
+        self.assertEqual(row["first_seen"], NOW.isoformat())
+        self.assertEqual(row["last_seen"], later.isoformat())
+        self.assertEqual(row["username"], "nick")
+        self.assertEqual(self.store.list_events(42)[-1]["os"], OS_ANDROID)
+
+    def test_shop_stats_counts_os_and_window(self) -> None:
+        self.store.remember_visit(1, now=NOW, display_name="A", action="start")
+        self.store.set_os(1, OS_ANDROID, now=NOW, display_name="A")
+        self.store.remember_visit(
+            1, now=NOW, display_name="A", action="download", os_name=OS_ANDROID
+        )
+        self.store.remember_visit(2, now=NOW, display_name="B", action="start")
+        self.store.set_os(2, OS_IOS, now=NOW, display_name="B")
+        old = NOW - timedelta(days=3)
+        self.store.remember_visit(3, now=old, display_name="C", action="start")
+        stats = self.store.shop_stats(now=NOW)
+        self.assertEqual(stats["visitors"], 3)
+        self.assertEqual(stats["visitors_recent"], 2)
+        self.assertEqual(stats["android"], 1)
+        self.assertEqual(stats["ios"], 1)
+        self.assertEqual(stats["unknown_os"], 1)
+        self.assertEqual(stats["downloads_recent"], 1)
+        self.assertEqual(stats["reports_total"], 0)
+
+    def test_recent_visitors_newest_first(self) -> None:
+        self.store.remember_visit(1, now=NOW, display_name="Старый", action="start")
+        later = NOW + timedelta(minutes=5)
+        self.store.remember_visit(2, now=later, display_name="Новый", action="start")
+        rows = self.store.list_recent_visitors(limit=10)
+        self.assertEqual([row["telegram_id"] for row in rows], [2, 1])
+
 
 class InvoicePayloadTest(unittest.TestCase):
     def test_roundtrip(self) -> None:
@@ -139,6 +203,20 @@ class PlanFromEnvTest(unittest.TestCase):
             plan_from_env("0")
         with self.assertRaises(ValueError):
             plan_from_env("ten")
+
+
+class ParseAdminIdsTest(unittest.TestCase):
+    def test_empty_is_no_admins(self) -> None:
+        self.assertEqual(parse_admin_ids(None), frozenset())
+        self.assertEqual(parse_admin_ids(""), frozenset())
+        self.assertEqual(parse_admin_ids("  "), frozenset())
+
+    def test_comma_list_skips_garbage(self) -> None:
+        self.assertEqual(parse_admin_ids("1001, abc, 2002"), frozenset({1001, 2002}))
+        self.assertEqual(parse_admin_ids("7;8"), frozenset({7, 8}))
+
+    def test_rejects_zero_and_negative(self) -> None:
+        self.assertEqual(parse_admin_ids("0, -4, 9"), frozenset({9}))
 
 
 if __name__ == "__main__":

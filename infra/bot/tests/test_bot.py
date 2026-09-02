@@ -18,6 +18,7 @@ class BotMainTest(unittest.TestCase):
     def setUp(self) -> None:
         self._token = os.environ.pop("NOVA_BOT_TOKEN", None)
         self._payments = os.environ.pop("NOVA_PAYMENTS", None)
+        self._admins = os.environ.pop("NOVA_BOT_ADMIN_IDS", None)
 
     def tearDown(self) -> None:
         if self._token is not None:
@@ -28,6 +29,10 @@ class BotMainTest(unittest.TestCase):
             os.environ["NOVA_PAYMENTS"] = self._payments
         else:
             os.environ.pop("NOVA_PAYMENTS", None)
+        if self._admins is not None:
+            os.environ["NOVA_BOT_ADMIN_IDS"] = self._admins
+        else:
+            os.environ.pop("NOVA_BOT_ADMIN_IDS", None)
 
     def test_main_without_token_exits_1(self) -> None:
         self.assertEqual(bot_mod.main(), 1)
@@ -66,6 +71,19 @@ class BotMainTest(unittest.TestCase):
         try:
             with self.assertRaises(SystemExit):
                 bot_mod.load_context()
+        finally:
+            os.unlink(tmp.name)
+            os.environ.pop("NOVA_BOT_DB", None)
+
+    def test_load_context_reads_admin_ids(self) -> None:
+        os.environ["NOVA_BOT_ADMIN_IDS"] = "1001, 2002"
+        tmp = tempfile.NamedTemporaryFile(suffix=".db", delete=False)
+        tmp.close()
+        os.environ["NOVA_BOT_DB"] = tmp.name
+        try:
+            ctx = bot_mod.load_context()
+            self.assertEqual(ctx.admin_ids, frozenset({1001, 2002}))
+            ctx.store.close()
         finally:
             os.unlink(tmp.name)
             os.environ.pop("NOVA_BOT_DB", None)

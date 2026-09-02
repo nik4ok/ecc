@@ -9,7 +9,8 @@ import time
 from pathlib import Path
 
 from handlers import ShopContext, handle_update
-from shop import EntitlementStore, plan_from_env
+from houses import CashierHouseProbe
+from shop import EntitlementStore, parse_admin_ids, plan_from_env
 from telegram_api import TelegramApi, TelegramApiError
 
 LOG = logging.getLogger("nova.bot")
@@ -31,11 +32,17 @@ def load_context() -> ShopContext:
     if mode == "dev" and os.environ.get("NOVA_DEV_PAY", "") != "1":
         raise SystemExit("NOVA_PAYMENTS=dev requires NOVA_DEV_PAY=1")
     apk_path = Path(apk_raw) if apk_raw else None
+    raw_admins = os.environ.get("NOVA_BOT_ADMIN_IDS")
+    admin_ids = parse_admin_ids(raw_admins)
+    if (raw_admins or "").strip() and not admin_ids:
+        LOG.warning("NOVA_BOT_ADMIN_IDS is set but no valid ids parsed")
     return ShopContext(
         store=EntitlementStore(db_path),
         plan=plan_from_env(os.environ.get("NOVA_STARS_PRICE")),
         apk_path=apk_path,
         payment_mode=mode,
+        admin_ids=admin_ids,
+        houses=CashierHouseProbe.from_env().snapshot,
     )
 
 
@@ -83,7 +90,7 @@ def consume_update(api: TelegramApi, ctx: ShopContext | None, update: dict, offs
 
 def run_forever(api: TelegramApi, ctx: ShopContext) -> None:
     offset: int | None = None
-    LOG.info("NOVA bot started, payments=%s", ctx.payment_mode)
+    LOG.info("NOVA bot started, payments=%s admins=%s", ctx.payment_mode, len(ctx.admin_ids))
     try:
         api.delete_webhook()
     except TelegramApiError as err:

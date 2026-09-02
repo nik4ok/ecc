@@ -119,6 +119,23 @@ def plan_from_env(raw_stars: str | None) -> Plan:
     )
 
 
+def parse_admin_ids(raw: str | None) -> frozenset[int]:
+    if raw is None or not str(raw).strip():
+        return frozenset()
+    found: set[int] = set()
+    for chunk in str(raw).replace(";", ",").split(","):
+        piece = chunk.strip()
+        if not piece:
+            continue
+        try:
+            telegram_id = int(piece)
+        except ValueError:
+            continue
+        if telegram_id > 0:
+            found.add(telegram_id)
+    return frozenset(found)
+
+
 class EntitlementStore:
     def __init__(self, db_path: str) -> None:
         self._path = db_path
@@ -171,6 +188,36 @@ class EntitlementStore:
                 created_at TEXT NOT NULL
             )
             """
+        )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS visitors (
+                telegram_id INTEGER PRIMARY KEY,
+                username TEXT NOT NULL DEFAULT '',
+                display_name TEXT NOT NULL DEFAULT '',
+                language_code TEXT NOT NULL DEFAULT '',
+                first_seen TEXT NOT NULL,
+                last_seen TEXT NOT NULL,
+                visit_count INTEGER NOT NULL DEFAULT 0
+            )
+            """
+        )
+        self._conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS events (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                telegram_id INTEGER NOT NULL,
+                action TEXT NOT NULL,
+                os TEXT,
+                created_at TEXT NOT NULL
+            )
+            """
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_events_created ON events(created_at)"
+        )
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_visitors_last_seen ON visitors(last_seen)"
         )
         self._migrate_profile_columns()
         self._conn.commit()
@@ -468,6 +515,185 @@ class EntitlementStore:
                 (telegram_id, since.isoformat()),
             ).fetchone()
         return int(row["n"] if row else 0)
+
+    def get_visitor(self, telegram_id: int) -> dict | None:
+        require_telegram_id(telegram_id)
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT * FROM visitors WHERE telegram_id = ?",
+                (telegram_id,),
+            ).fetchone()
+        if row is None:
+            return None
+        return dict(row)
+
+    def remember_visit(
+        self,
+        telegram_id: int,
+        now: datetime,
+        *,
+        display_name: str = "",
+        username: str = "",
+        language_code: str = "",
+        action: str,
+        os_name: str | None = None,
+    ) -> dict:
+        require_telegram_id(telegram_id)
+        verb = (action or "").strip().lower()
+        if not verb or len(verb) > 32:
+            raise ValueError("action is required")
+        name = (display_name or "").strip()[:32]
+        handle = (username or "").strip().lstrip("@")[:32]
+        lang = (language_code or "").strip()[:16]
+        os_key = (os_name or "").strip().lower() or None
+        if os_key not in _ALLOWED_OS:
+            os_key = None
+        stamp = now.isoformat()
+        with self._lock:
+            try:
+                existing = self._conn.execute(
+                    "SELECT * FROM visitors WHERE telegram_id = ?",
+                    (telegram_id,),
+                ).fetchone()
+                if existing is None:
+                    self._conn.execute(
+                        """
+                        INSERT INTO visitors (
+                            telegram_id, username, display_name, language_code,
+                            first_seen, last_seen, visit_count
+                        )
+                        VALUES (?, ?, ?, ?, ?, ?, 1)
+                        """,
+                        (telegram_id, handle, name, lang, stamp, stamp),
+                    )
+                else:
+                    label = name or existing["display_name"]
+                    nick = handle or existing["username"]
+                    spoken = lang or existing["language_code"]
+                    self._conn.execute(
+                        """
+                        UPDATE visitors
+                        SET username = ?, display_name = ?, language_code = ?,
+                            last_seen = ?, visit_count = visit_count + 1
+                        WHERE telegram_id = ?
+                        """,
+                        (nick, label, spoken, stamp, telegram_id),
+                    )
+                self._conn.execute(
+                    """
+                    INSERT INTO events (telegram_id, action, os, created_at)
+                    VALUES (?, ?, ?, ?)
+                    """,
+                    (telegram_id, verb, os_key, stamp),
+                )
+                self._conn.commit()
+            except Exception:
+                self._conn.rollback()
+                raise
+        row = self.get_visitor(telegram_id)
+        if row is None:
+            raise RuntimeError("visitor did not persist")
+        return row
+
+    def list_events(self, telegram_id: int) -> list[dict]:
+        require_telegram_id(telegram_id)
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT * FROM events
+                WHERE telegram_id = ?
+                ORDER BY id ASC
+                """,
+                (telegram_id,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def list_recent_visitors(self, limit: int = 10) -> list[dict]:
+        cap = 10 if limit < 1 else min(int(limit), 50)
+        with self._lock:
+            rows = self._conn.execute(
+                """
+                SELECT v.*, p.os AS os
+                FROM visitors v
+                LEFT JOIN profiles p ON p.telegram_id = v.telegram_id
+                ORDER BY v.last_seen DESC
+                LIMIT ?
+                """,
+                (cap,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+
+    def shop_stats(self, now: datetime, window: timedelta | None = None) -> dict:
+        period = window or timedelta(hours=24)
+        since = (now - period).isoformat()
+        with self._lock:
+            visitors = int(
+                self._conn.execute("SELECT COUNT(*) AS n FROM visitors").fetchone()["n"]
+            )
+            visitors_recent = int(
+                self._conn.execute(
+                    "SELECT COUNT(*) AS n FROM visitors WHERE last_seen >= ?",
+                    (since,),
+                ).fetchone()["n"]
+            )
+            android = int(
+                self._conn.execute(
+                    """
+                    SELECT COUNT(*) AS n FROM visitors v
+                    INNER JOIN profiles p ON p.telegram_id = v.telegram_id
+                    WHERE p.os = ?
+                    """,
+                    (OS_ANDROID,),
+                ).fetchone()["n"]
+            )
+            ios = int(
+                self._conn.execute(
+                    """
+                    SELECT COUNT(*) AS n FROM visitors v
+                    INNER JOIN profiles p ON p.telegram_id = v.telegram_id
+                    WHERE p.os = ?
+                    """,
+                    (OS_IOS,),
+                ).fetchone()["n"]
+            )
+            unknown_os = int(
+                self._conn.execute(
+                    """
+                    SELECT COUNT(*) AS n FROM visitors v
+                    LEFT JOIN profiles p ON p.telegram_id = v.telegram_id
+                    WHERE p.os IS NULL OR p.os NOT IN (?, ?)
+                    """,
+                    (OS_ANDROID, OS_IOS),
+                ).fetchone()["n"]
+            )
+            downloads_recent = int(
+                self._conn.execute(
+                    """
+                    SELECT COUNT(*) AS n FROM events
+                    WHERE action = 'download' AND created_at >= ?
+                    """,
+                    (since,),
+                ).fetchone()["n"]
+            )
+            reports_total = int(
+                self._conn.execute("SELECT COUNT(*) AS n FROM reports").fetchone()["n"]
+            )
+            reports_recent = int(
+                self._conn.execute(
+                    "SELECT COUNT(*) AS n FROM reports WHERE created_at >= ?",
+                    (since,),
+                ).fetchone()["n"]
+            )
+        return {
+            "visitors": visitors,
+            "visitors_recent": visitors_recent,
+            "android": android,
+            "ios": ios,
+            "unknown_os": unknown_os,
+            "downloads_recent": downloads_recent,
+            "reports_total": reports_total,
+            "reports_recent": reports_recent,
+        }
 
     def close(self) -> None:
         self._conn.close()

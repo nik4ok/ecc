@@ -12,7 +12,7 @@ ENV_FILE=/etc/nova-bot.env
 
 mkdir -p "$DEST" "$DATADIR"
 chmod 700 "$DATADIR"
-cp -a "$SRC/shop.py" "$SRC/handlers.py" "$SRC/telegram_api.py" "$SRC/bot.py" "$SRC/messages.py" "$DEST/"
+cp -a "$SRC/shop.py" "$SRC/handlers.py" "$SRC/telegram_api.py" "$SRC/bot.py" "$SRC/messages.py" "$SRC/houses.py" "$DEST/"
 install -m 644 "$SRC/nova-bot.service" /etc/systemd/system/nova-bot.service
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -21,11 +21,16 @@ if [[ ! -f "$ENV_FILE" ]]; then
 NOVA_BOT_TOKEN=
 NOVA_PAYMENTS=off
 NOVA_STARS_PRICE=250
+NOVA_BOT_ADMIN_IDS=
+NOVA_CASHIER_URL=http://127.0.0.1:8090
 EOF
   chmod 600 "$ENV_FILE"
   echo "Заполните токен: $ENV_FILE"
 else
   echo "Оставляю существующий $ENV_FILE"
+  if ! grep -q '^NOVA_BOT_ADMIN_IDS=' "$ENV_FILE"; then
+    echo "Добавьте NOVA_BOT_ADMIN_IDS=ваш_telegram_id в $ENV_FILE — без этого кабинета не будет."
+  fi
 fi
 
 if [[ ! -f "$DATADIR/NOVA.apk" ]]; then

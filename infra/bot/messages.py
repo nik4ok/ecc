@@ -18,6 +18,11 @@ BUTTON_DOWNLOAD = "Скачать NOVA"
 BUTTON_PAY = "Оплатить"
 BUTTON_STATUS = "Мой статус"
 BUTTON_REPORT = "Сообщить о проблеме"
+BUTTON_ADMIN = "Кабинет"
+BUTTON_ADMIN_STATS = "Статистика"
+BUTTON_ADMIN_CLIENTS = "Клиенты"
+BUTTON_ADMIN_HOUSE = "Дом"
+BUTTON_SHOP = "В витрину"
 
 ANDROID_READY = (
     "Android можно ставить сейчас — это превью.\n\n"
@@ -99,3 +104,17 @@ NO_SUB = "Подписки нет. Нажмите «Оплатить»."
 PAYMENT_OK = "Оплата прошла. Дальше установите NOVA с телефона."
 PRECHECK_BAD_AMOUNT = "Счёт не совпал. Нажмите «Оплатить» ещё раз."
 PRECHECK_BAD_PAYLOAD = "Этот счёт вам не принадлежит. Нажмите «Оплатить» ещё раз."
+
+ADMIN_HOME = (
+    "Кабинет оператора.\n\n"
+    "Ваш Telegram id: {telegram_id}\n"
+    "Кнопка «Кабинет» видна только вам.\n\n"
+    "Статистика — кто писал в витрину.\n"
+    "Клиенты — люди в боте и устройства VPN.\n"
+    "Дом — офис и дверь."
+)
+
+ADMIN_HOUSE_UNSET = (
+    "Офис: касса не настроена.\n\n"
+    "Бот не знает, куда стучаться. На сервере это NOVA_CASHIER_URL."
+)
