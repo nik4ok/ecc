@@ -10,6 +10,7 @@ Live peers with a handshake are left alone (set FORCE_REPLACE=1 to override).
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import sqlite3
 import subprocess
@@ -18,20 +19,33 @@ from pathlib import Path
 CONTAINER = os.environ.get("NOVA_EDGE_CONTAINER", "amnezia-awg2")
 INTERFACE = os.environ.get("NOVA_EDGE_INTERFACE", "awg0")
 DB = os.environ.get("NOVA_USERS_DB", "/var/lib/nova-controlplane/nova_users.db")
+INSIDE_CONF_CANDIDATES = (
+    "/opt/amnezia/awg/awg0.conf",
+    "/opt/amnezia/awg0.conf",
+    "/config/awg0.conf",
+)
 
 
-def run(cmd: list[str], input_text: str | None = None) -> subprocess.CompletedProcess[str]:
+def docker_exec(args: list[str], input_text: str | None = None, timeout: int = 15) -> subprocess.CompletedProcess[str]:
+    return run(["docker", "exec", *(["-i"] if input_text is not None else []), CONTAINER, *args], input_text, timeout)
+
+
+def run(
+    cmd: list[str],
+    input_text: str | None = None,
+    timeout: int = 15,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         cmd,
         input=input_text,
         capture_output=True,
         text=True,
-        timeout=15,
+        timeout=timeout,
         check=False,
     )
 
 
-def find_awg0_conf() -> Path | None:
+def find_host_conf() -> Path | None:
     inspect = run(
         [
             "docker",
@@ -54,11 +68,63 @@ def find_awg0_conf() -> Path | None:
     return None
 
 
-def psk_from_conf(conf: Path) -> str:
-    for line in conf.read_text(encoding="utf-8").splitlines():
+def find_inside_conf() -> str | None:
+    for path in INSIDE_CONF_CANDIDATES:
+        probe = docker_exec(["test", "-f", path])
+        if probe.returncode == 0:
+            return path
+    found = docker_exec(
+        ["sh", "-c", "find /opt /etc /config -name awg0.conf 2>/dev/null | head -1"],
+        timeout=20,
+    )
+    path = (found.stdout or "").strip().splitlines()
+    return path[0] if path else None
+
+
+def read_conf_text(host: Path | None, inside: str | None) -> str:
+    if host is not None:
+        return host.read_text(encoding="utf-8")
+    if inside:
+        result = docker_exec(["cat", inside])
+        if result.returncode == 0:
+            return result.stdout
+    return ""
+
+
+def write_conf_text(host: Path | None, inside: str | None, text: str) -> str:
+    if host is not None:
+        host.write_text(text, encoding="utf-8")
+        return str(host)
+    if inside:
+        result = docker_exec(["tee", inside], input_text=text)
+        if result.returncode != 0:
+            raise RuntimeError(result.stderr.strip() or "failed to write awg0.conf in container")
+        return f"{CONTAINER}:{inside}"
+    return ""
+
+
+def psk_from_text(conf_text: str) -> str | None:
+    for line in conf_text.splitlines():
         if line.lower().startswith("presharedkey"):
-            return line.split("=", 1)[1].strip()
-    raise SystemExit(f"no PresharedKey in {conf}")
+            value = line.split("=", 1)[1].strip()
+            if value:
+                return value
+    return None
+
+
+def psk_from_repo() -> str | None:
+    path = Path(__file__).resolve().parents[1] / "servers.json"
+    if not path.is_file():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    for server in payload.get("servers", []):
+        protocols = server.get("active_protocols") if isinstance(server.get("active_protocols"), dict) else {}
+        awg = protocols.get("amnezia_wg_2") if isinstance(protocols.get("amnezia_wg_2"), dict) else {}
+        obf = awg.get("obfuscation") if isinstance(awg.get("obfuscation"), dict) else {}
+        key = str(obf.get("preshared_key") or "").strip()
+        if key:
+            return key
+    return None
 
 
 def load_book() -> list[tuple[str, str, str]]:
@@ -159,18 +225,22 @@ def main() -> int:
     args = parser.parse_args()
     force = os.environ.get("FORCE_REPLACE", "") == "1"
 
-    conf = find_awg0_conf()
-    if conf is None:
-        raise SystemExit("awg0.conf not found next to amnezia-awg2")
-    psk = psk_from_conf(conf)
+    host_conf = find_host_conf()
+    inside_conf = None if host_conf else find_inside_conf()
+    conf_text = read_conf_text(host_conf, inside_conf)
+    psk = psk_from_text(conf_text) or psk_from_repo()
+    if not psk:
+        raise SystemExit("no PresharedKey in awg0.conf or infra/servers.json")
+
     show = run(["docker", "exec", CONTAINER, "awg", "show", INTERFACE])
     if show.returncode != 0:
         raise SystemExit(show.stderr or "awg show failed")
     peers = parse_awg_show(show.stdout)
     book = load_book()
     pump_keys = set(peers)
-    conf_text = conf.read_text(encoding="utf-8")
     planned: list[str] = []
+    conf_dirty = False
+    changed_live = False
 
     for name, key, ip in book:
         if key in pump_keys:
@@ -181,7 +251,10 @@ def main() -> int:
             planned.append(f"add    {ip}  {key[:8]}…  {name}")
             if args.apply:
                 add_peer(key, ip, psk)
-                conf_text = upsert_peer_block(conf_text, key, ip, psk)
+                changed_live = True
+                if conf_text:
+                    conf_text = upsert_peer_block(conf_text, key, ip, psk)
+                    conf_dirty = True
             continue
         old_key, meta = taken
         live = bool(meta["handshake"])
@@ -196,15 +269,30 @@ def main() -> int:
         if args.apply:
             remove_peer(old_key)
             add_peer(key, ip, psk)
-            conf_text = drop_peer_block(conf_text, old_key)
-            conf_text = upsert_peer_block(conf_text, key, ip, psk)
+            changed_live = True
+            if conf_text:
+                conf_text = drop_peer_block(conf_text, old_key)
+                conf_text = upsert_peer_block(conf_text, key, ip, psk)
+                conf_dirty = True
 
     print("\n".join(planned))
     if not args.apply:
-        print("\nЭто просмотр. Чтобы записать: python3 infra/scripts/13_sync_sqlite_to_awg.py --apply")
+        where = str(host_conf) if host_conf else (f"{CONTAINER}:{inside_conf}" if inside_conf else "только память насоса")
+        print(f"\nКонфиг: {where}")
+        print("Это просмотр. Чтобы записать: python3 infra/scripts/13_sync_sqlite_to_awg.py --apply")
         return 0
-    conf.write_text(conf_text, encoding="utf-8")
-    print(f"\nзаписал {conf}")
+    if conf_dirty:
+        written = write_conf_text(host_conf, inside_conf, conf_text)
+        if written:
+            print(f"\nзаписал {written}")
+        else:
+            print("\nнасос обновлён, awg0.conf не нашли — после рестарта контейнера пиры могут пропасть")
+    elif changed_live:
+        print("\nнасос обновлён")
+        if not conf_text:
+            print("awg0.conf не нашли — после рестарта контейнера пиры могут пропасть")
+    else:
+        print("\nменять было нечего")
     return 0
 
 
